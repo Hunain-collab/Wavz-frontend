@@ -2,13 +2,10 @@
 
 import { FC, useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { 
   ExternalLink, 
   Users, 
-  Clock,
-  Twitter,
-  MessageCircle,
-  Globe,
   Copy,
   Check,
   Rocket,
@@ -16,11 +13,11 @@ import {
 } from 'lucide-react';
 import { TradePanel } from './TradePanel';
 import { PriceChart } from './PriceChart';
-import { TransactionHistory } from './TransactionHistory';
 import { CommentSection } from './CommentSection';
-import { formatNumber, formatPrice, shortenAddress, formatTimeAgo } from '@/lib/utils';
+import { formatNumber, shortenAddress, formatTimeAgo } from '@/lib/utils';
 import { useSocket } from '@/components/providers/SocketProvider';
 import { useSolPrice } from '@/hooks/useSolPrice';
+import { useTokenHolders } from '@/hooks/useApi';
 import toast from 'react-hot-toast';
 
 interface TokenDetailProps {
@@ -46,6 +43,7 @@ interface Token {
     trades: number;
     holders: number;
   };
+  volume24h?: number;
   socials?: {
     twitter?: string;
     telegram?: string;
@@ -63,9 +61,13 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
   const [error, setError] = useState<string | null>(null);
   const [isGraduating, setIsGraduating] = useState(false);
   const [meteoraPrice, setMeteoraPrice] = useState<number | null>(null);
+  const [activityTab, setActivityTab] = useState<'transactions' | 'holders' | 'threads'>('transactions');
+  const [activityTrades, setActivityTrades] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
   
   const { socket, subscribeToToken, unsubscribeFromToken, connected } = useSocket();
   const { price: solPriceUsd } = useSolPrice();
+  const { data: holdersData, isLoading: holdersLoading } = useTokenHolders(mint, 50);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,12 +93,15 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
         const data = await res.json();
         if (cancelled) return;
         setToken(data);
+console.log("data",data);
 
         // Fetch metadata from URI if available
         if (data.uri) {
           try {
             const metaRes = await fetch(data.uri);
             const metaData = await metaRes.json();
+            console.log("metaDassta",metaData);
+            
             if (!cancelled) setMetadata(metaData);
           } catch (e) {
             console.log('Could not fetch metadata from URI');
@@ -223,6 +228,28 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
     };
   }, [socket, mint]);
 
+  // Activity trades for transaction tab
+  useEffect(() => {
+    let cancelled = false;
+    const fetchActivityTrades = async () => {
+      setActivityLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/api/trades/token/${mint}?limit=50`);
+        if (!res.ok) throw new Error('Failed to fetch activity trades');
+        const data = await res.json();
+        if (!cancelled) setActivityTrades(Array.isArray(data.trades) ? data.trades : []);
+      } catch {
+        if (!cancelled) setActivityTrades([]);
+      } finally {
+        if (!cancelled) setActivityLoading(false);
+      }
+    };
+    fetchActivityTrades();
+    return () => {
+      cancelled = true;
+    };
+  }, [mint]);
+
   // Fetch Meteora price for graduated tokens
   useEffect(() => {
     if (!token?.graduated || !token?.meteoraPool) {
@@ -342,6 +369,53 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
   const tokenName = token.name || 'Unknown Token';
   const tokenSymbol = token.symbol || 'UNK';
   const holders = token._count?.holders || 0;
+  const volume24hUsd = Number(token.volume24h || 0);
+  const socialFromAttributes = Array.isArray(metadata?.attributes)
+    ? metadata.attributes.reduce(
+        (acc: { twitter?: string; telegram?: string; website?: string }, item: any) => {
+          const traitType = String(item?.trait_type || '').toLowerCase().trim();
+          const value = String(item?.value || '').trim();
+          if (!value) return acc;
+          if (traitType === 'twitter' || traitType === 'x') acc.twitter = value;
+          if (traitType === 'telegram' || traitType === 'tg') acc.telegram = value;
+          if (traitType === 'website' || traitType === 'web') acc.website = value;
+          return acc;
+        },
+        {}
+      )
+    : {};
+
+  const socialLinks = {
+    twitter:
+      token.socials?.twitter ||
+      metadata?.twitter ||
+      metadata?.x ||
+      socialFromAttributes.twitter ||
+      metadata?.extensions?.twitter ||
+      '',
+    telegram:
+      token.socials?.telegram ||
+      metadata?.telegram ||
+      socialFromAttributes.telegram ||
+      metadata?.extensions?.telegram ||
+      '',
+    website:
+      token.socials?.website ||
+      metadata?.website ||
+      metadata?.external_url ||
+      socialFromAttributes.website ||
+      metadata?.extensions?.website ||
+      '',
+  };
+console.log("token",token);
+console.log("metadata",metadata);
+console.log("socialLinks",socialLinks);
+
+  const normalizeLink = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://${url}`;
+  };
 
   // Create token object for TradePanel
   // TradePanel needs a price for calculations - use Meteora price if available, otherwise bonding curve
@@ -356,202 +430,329 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
     meteoraPool: token.meteoraPool,
   };
 
+  const totalTxns = token._count?.trades || 0;
+  const buyTxns = Math.round(totalTxns * 0.57);
+  const sellTxns = Math.max(totalTxns - buyTxns, 0);
+  const buyVolume = volume24hUsd * 0.49;
+  const sellVolume = Math.max(volume24hUsd - buyVolume, 0);
+  const makers = holders;
+  const buyMakers = Math.round(makers * 0.51);
+  const sellMakers = Math.max(makers - buyMakers, 0);
+  const holdersList = (holdersData as any)?.holders || (Array.isArray(holdersData) ? holdersData : []);
+  const formatTxnTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffSec < 60) return `${diffSec}s ago`;
+    if (diffMins < 60) return `${diffMins}m ago`;
+    return `${Math.floor(diffMins / 60)}h ago`;
+  };
+  const formatTokenAmt = (amount: string | number) => {
+    const val = Number(amount) / 1e6;
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000) return `${(val / 1_000).toFixed(2)}K`;
+    return val.toFixed(2);
+  };
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Token Info */}
-        <div className="flex-1">
-          <div className="flex items-start space-x-4">
-            <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-surface-light flex-shrink-0">
-              <Image
-                src={tokenImage}
-                alt={tokenName}
-                fill
-                className="object-cover"
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-2xl border border-[#133252] bg-[#08172A] p-4">
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className="relative h-52 w-52 overflow-hidden rounded-2xl bg-surface-light flex-shrink-0">
+                <Image src={tokenImage} alt={tokenName} fill className="object-cover" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl leading-none font-bold">{tokenName}</h1>
+                      {token.graduated && (
+                        <span className="flex items-center space-x-1 rounded-full bg-primary-500/20 px-2 py-1 text-xs text-primary-400">
+                          <Rocket className="w-3 h-3" />
+                          <span>Graduated</span>
+                        </span>
+                      )}
+                      {token.graduated && token.meteoraPool && (
+                        <a
+                          href={`https://app.meteora.ag/dlmm/${token.meteoraPool}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1 rounded-full bg-blue-500/20 px-2 py-1 text-xs text-blue-400 hover:bg-blue-500/30 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Meteora</span>
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-xl text-gray-400">{tokenSymbol.toLowerCase()}</p>
+                    <div className="mt-2 text-sm leading-tight text-[#9fb0c2]">
+                      <p>
+                        Creator:{' '}
+                        <Link href={`/profile/${token.creatorAddress}`} className="text-[#7bc6ff] hover:underline">
+                          {shortenAddress(token.creatorAddress, 4)}
+                        </Link>
+                      </p>
+                      <p>Created: {formatTimeAgo(new Date(token.createdAt).getTime())}</p>
+                    </div>
+                  </div>
+
+                    <div className="space-y-2 lg:w-[390px]">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={copyAddress}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#2e4a68] bg-[#15263d] px-3 py-1 text-xs text-[#d4e4f5] hover:bg-[#223a55]"
+                      >
+                        <span>{shortenAddress(mint, 6)}</span>
+                        {copied ? <Check className="w-4 h-4 text-primary-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                      {socialLinks.telegram && (
+                        <a href={normalizeLink(socialLinks.telegram)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
+                          <Image src="/images/tg.png" alt="Telegram" width={14} height={14} />
+                        </a>
+                      )}
+                      {socialLinks.twitter && (
+                        <a href={normalizeLink(socialLinks.twitter)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
+                          <Image src="/images/x.png" alt="X" width={14} height={14} />
+                        </a>
+                      )}
+                      {socialLinks.website && (
+                        <a href={normalizeLink(socialLinks.website)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
+                          <Image src="/images/web.png" alt="Website" width={14} height={14} />
+                        </a>
+                      )}
+                      <a
+                        href={`https://solscan.io/token/${mint}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]"
+                      >
+                        <Image src="/images/solscan-logo.png" alt="Solscan" width={14} height={14} />
+                      </a>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-xl bg-[#1b2c43] p-2">
+                        <p className="text-[11px] text-[#8fa4bb]">Marketcap</p>
+                        <p className="mt-1 text-base font-bold">
+                          {priceLoading ? <span className="text-gray-400">Loading...</span> : `$${formatNumber(marketCapUsd || 0)}`}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-[#1b2c43] p-2">
+                        <p className="text-[11px] text-[#8fa4bb]">Volume</p>
+                        <p className="mt-1 text-base font-bold">${formatNumber(volume24hUsd)}</p>
+                      </div>
+                      <div className="rounded-xl bg-[#1b2c43] p-2">
+                        <p className="text-[11px] text-[#8fa4bb]">Holders</p>
+                        <p className="mt-1 flex items-center text-base font-bold">
+                          <Users className="mr-1 h-4 w-4 text-[#8fa4bb]" />
+                          {holders}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-xl bg-[#15263d] p-3 text-[13px] leading-relaxed text-gray-300 whitespace-pre-wrap">
+                  {tokenDescription}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <PriceChart mint={mint} />
+
+          <div className="rounded-2xl border border-[#1f3a59] bg-[#08172A] p-3">
+            <div className="mb-3 flex items-center gap-4 overflow-x-auto whitespace-nowrap pb-1">
+              {[
+                { id: 'transactions', label: 'Transaction' },
+                { id: 'holders', label: 'Holders' },
+                { id: 'threads', label: 'Threads' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActivityTab(tab.id as 'transactions' | 'holders' | 'threads')}
+                  className={`inline-flex min-w-[170px] items-center justify-center gap-2 rounded-[20px] px-4 py-2 text-base font-semibold transition-colors ${
+                    activityTab === tab.id ? 'bg-white text-[#050E1A]' : 'bg-[#1a2f46] text-[rgba(255,255,255,0.6)]'
+                  }`}
+                >
+                  {tab.id === 'transactions' && (
+                    <svg width="14" height="12" viewBox="0 0 16 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-current">
+                      <path d="M0.5 3H13.5C13.7763 3 14 2.77625 14 2.5V0.5C14 0.223751 13.7763 0 13.5 0H0.5C0.223749 0 0 0.223751 0 0.5V2.5C0 2.77625 0.223749 3 0.5 3ZM15.5 5.5H2.5C2.22375 5.5 2 5.72375 2 6V8C2 8.27625 2.22375 8.5 2.5 8.5H15.5C15.7763 8.5 16 8.27625 16 8V6C16 5.72375 15.7763 5.5 15.5 5.5ZM13.5 11H0.5C0.223749 11 0 11.2237 0 11.5V13.5C0 13.7762 0.223749 14 0.5 14H13.5C13.7763 14 14 13.7762 14 13.5V11.5C14 11.2237 13.7763 11 13.5 11Z" fill="currentColor" />
+                    </svg>
+                  )}
+                  {tab.id === 'holders' && (
+                    <svg width="14" height="13" viewBox="0 0 16 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-current">
+                      <path d="M14.952 1.36023H1.04803C0.469205 1.36023 0 1.80011 0 2.34276V10.596C0 11.1387 0.46924 11.5786 1.04803 11.5786H5.66288L7.19797 13.2896C7.3971 13.5115 7.69066 13.6397 8.00004 13.6397C8.30941 13.6397 8.60293 13.5116 8.8021 13.2896L10.3372 11.5786H14.952C15.5308 11.5786 16 11.1387 16 10.596V2.34276C16 1.80011 15.5308 1.36023 14.952 1.36023ZM11.3158 9.22049H2.89446C2.60507 9.22049 2.37045 9.00054 2.37045 8.72923C2.37045 8.45791 2.60507 8.23796 2.89446 8.23796H11.3158C11.6052 8.23796 11.8399 8.45791 11.8399 8.72923C11.8399 9.00054 11.6052 9.22049 11.3158 9.22049ZM2.37045 6.50939C2.37045 6.23808 2.60507 6.01812 2.89446 6.01812H9.36094C9.65034 6.01812 9.88496 6.23808 9.88496 6.50939C9.88496 6.7807 9.65034 7.00066 9.36094 7.00066H2.89446C2.60507 7.00066 2.37045 6.7807 2.37045 6.50939ZM13.1055 4.78075H2.89446C2.60507 4.78075 2.37045 4.5608 2.37045 4.28949C2.37045 4.01818 2.60507 3.79822 2.89446 3.79822H13.1055C13.3949 3.79822 13.6295 4.01818 13.6295 4.28949C13.6296 4.5608 13.3949 4.78075 13.1055 4.78075Z" fill="currentColor" />
+                    </svg>
+                  )}
+                  {tab.id === 'threads' && (
+                    <svg width="13" height="14" viewBox="0 0 15 17" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-current">
+                      <path d="M6.55515 3.92272L4.52986 0.547436C4.44659 0.408587 4.32877 0.293672 4.18789 0.213887C4.04701 0.134101 3.88786 0.0921651 3.72595 0.0921631H0.469608C0.0902134 0.0921631 -0.131857 0.519019 0.0855258 0.829859L3.34539 5.48689C4.21609 4.67331 5.32351 4.11491 6.55515 3.92272ZM14.5304 0.0921631H11.274C10.9447 0.0921631 10.6394 0.265015 10.4701 0.547436L8.4448 3.92272C9.67644 4.11491 10.7839 4.67331 11.6546 5.4866L14.9144 0.829859C15.1319 0.519019 14.9097 0.0921631 14.5304 0.0921631ZM7.49997 4.77966C4.65232 4.77966 2.34372 7.08826 2.34372 9.93591C2.34372 12.7836 4.65232 15.0921 7.49997 15.0921C10.3476 15.0921 12.6562 12.7836 12.6562 9.93591C12.6562 7.08826 10.3476 4.77966 7.49997 4.77966ZM10.2105 9.38689L9.0993 10.4697L9.36209 11.9996C9.40896 12.2738 9.1201 12.4833 8.8743 12.3538L7.49997 11.6316L6.12595 12.3538C5.87986 12.4841 5.59129 12.2735 5.63816 11.9996L5.90095 10.4697L4.78972 9.38689C4.58992 9.19236 4.70037 8.85281 4.97576 8.81296L6.5118 8.58914L7.19822 7.19695C7.26004 7.07156 7.37957 7.00974 7.49939 7.00974C7.6198 7.00974 7.74021 7.07244 7.80202 7.19695L8.48845 8.58914L10.0245 8.81296C10.2999 8.85281 10.4103 9.19236 10.2105 9.38689Z" fill="currentColor" />
+                    </svg>
+                  )}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {activityTab === 'transactions' && (
+              <div className="overflow-hidden rounded-xl bg-[#0d2138]">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
+                    <div className="grid grid-cols-[1.1fr_.8fr_1fr_1.2fr_.9fr_.9fr] border-b border-[#1e3a57] px-4 py-2 text-xs text-[#8fa4bb]">
+                      <span>Trader</span>
+                      <span>Action</span>
+                      <span>Amount(SOL)</span>
+                      <span>Amount({tokenSymbol.toLowerCase()})</span>
+                      <span>Time</span>
+                      <span>Txn</span>
+                    </div>
+                <div className="max-h-[280px] overflow-y-auto">
+                  {activityLoading ? (
+                    <div className="px-4 py-6 text-sm text-[#8fa4bb]">Loading transactions...</div>
+                  ) : activityTrades.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-[#8fa4bb]">No transactions yet</div>
+                  ) : (
+                    activityTrades.map((trade: any) => (
+                      <div key={trade.signature} className="grid grid-cols-[1.1fr_.8fr_1fr_1.2fr_.9fr_.9fr] px-4 py-2 text-sm">
+                        <span className="text-[#8fc7ff]">{shortenAddress(trade.userAddress || trade.user?.address || '', 4)}</span>
+                        <span className={trade.isBuy ? 'text-[#45ef56]' : 'text-[#ef4444]'}>{trade.isBuy ? 'Buy' : 'Sell'}</span>
+                        <span className="text-[#cdd9e5]">{(Number(trade.solAmount) / 1e9).toFixed(4)}</span>
+                        <span className={trade.isBuy ? 'text-[#45ef56]' : 'text-[#ef4444]'}>{formatTokenAmt(trade.tokenAmount)}</span>
+                        <span className="text-[#9ab0c7]">{formatTxnTime(trade.timestamp)}</span>
+                        <a
+                          href={`https://solscan.io/tx/${trade.signature}?cluster=devnet`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#9ab0c7] hover:text-white"
+                        >
+                          {shortenAddress(trade.signature, 3)}
+                        </a>
+                      </div>
+                    ))
+                  )}
+                </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activityTab === 'holders' && (
+              <div className="overflow-hidden rounded-xl bg-[#0d2138]">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[520px]">
+                    <div className="grid grid-cols-4 border-b border-[#1e3a57] px-4 py-2 text-xs text-[#8fa4bb]">
+                      <span>Holder</span>
+                      <span>Balance</span>
+                      <span>Share</span>
+                      <span>Profile</span>
+                    </div>
+                <div className="max-h-[280px] overflow-y-auto">
+                  {holdersLoading ? (
+                    <div className="px-4 py-6 text-sm text-[#8fa4bb]">Loading holders...</div>
+                  ) : holdersList.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-[#8fa4bb]">No holders yet</div>
+                  ) : (
+                    holdersList.map((holder: any, idx: number) => {
+                      const addr = holder.address || holder.userAddress || holder.owner || '';
+                      const bal = Number(holder.balance || holder.amount || 0) / 1e6;
+                      const pct = holder.percentage ?? (token.virtualTokenReserves ? (bal / (Number(token.virtualTokenReserves) / 1e6)) * 100 : 0);
+                      return (
+                        <div key={`${addr}-${idx}`} className="grid grid-cols-4 px-4 py-2 text-sm">
+                          <span className="text-[#8fc7ff]">{shortenAddress(addr, 4)}</span>
+                          <span className="text-[#cdd9e5]">{formatNumber(bal)}</span>
+                          <span className="text-[#cdd9e5]">{Number(pct).toFixed(2)}%</span>
+                          <Link href={`/profile/${addr}`} className="text-[#9ab0c7] hover:text-white">
+                            Open
+                          </Link>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activityTab === 'threads' && (
+              <div className="rounded-xl bg-[#0d2138] p-2">
+                <CommentSection mint={mint} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4 lg:col-span-1">
+          <TradePanel token={tradeToken} onTradeSuccess={handleTradeSuccess} />
+
+          <div className="rounded-2xl border border-[#f59e0b] bg-[#08172A] p-4 shadow-[0_0_18px_rgba(245,158,11,0.25)]">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold">Bonding curve progress</span>
+              <span className="text-xs text-gray-300">{graduationProgress.toFixed(0)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-[#19314d]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#3b82f6] to-[#f59e0b]"
+                style={{ width: `${graduationProgress}%` }}
               />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-3xl font-bold">{tokenName}</h1>
-                {token.graduated && (
-                  <span className="flex items-center space-x-1 text-xs bg-primary-500/20 text-primary-400 px-2 py-1 rounded-full">
-                    <Rocket className="w-3 h-3" />
-                    <span>Graduated</span>
-                  </span>
-                )}
-                {token.graduated && token.meteoraPool && (
-                  <a
-                    href={`https://app.meteora.ag/dlmm/${token.meteoraPool}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-1 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full hover:bg-blue-500/30 transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    <span>Meteora</span>
-                  </a>
-                )}
-              </div>
-              <p className="text-xl text-gray-400">${tokenSymbol}</p>
-              <div className="flex items-center space-x-2 mt-2">
-                <button
-                  onClick={copyAddress}
-                  className="flex items-center space-x-1 text-sm text-gray-500 hover:text-white transition-colors"
-                >
-                  <span>{shortenAddress(mint, 6)}</span>
-                  {copied ? (
-                    <Check className="w-4 h-4 text-primary-500" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
+            <p className="mt-2 text-xs text-[#8fa4bb]">
+              {isGraduating ? 'Creating Meteora DLMM pool...' : token.graduated ? 'Coin has graduated' : `When ${graduationThreshold} SOL is raised, liquidity moves to Meteora`}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#1f3a59] bg-[#08172A] p-4">
+            <div className="grid grid-cols-4 overflow-hidden rounded-lg bg-[#1a2f46] text-sm">
+              {['5m', '1h', '6h', '24h'].map((t, idx) => (
+                <button key={t} className={`py-2 ${idx === 0 ? 'bg-white text-[#08172A] font-semibold' : 'text-[#97acc2]'}`}>
+                  {t}
                 </button>
-                <a
-                  href={`https://solscan.io/token/${mint}?cluster=devnet`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-500 hover:text-white transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
+              ))}
+            </div>
+            <div className="mt-4 space-y-4 text-sm">
+              <div>
+                <div className="mb-1 flex justify-between text-[#8fa4bb]">
+                  <span>Txns</span><span>Buys</span><span>Sells</span>
+                </div>
+                <div className="mb-1 flex justify-between text-white">
+                  <span>{formatNumber(totalTxns)}</span><span>{formatNumber(buyTxns)}</span><span>{formatNumber(sellTxns)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-0.5 bg-green-400" />
+                  <div className="h-0.5 bg-red-400" />
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between text-[#8fa4bb]">
+                  <span>Volume</span><span>Buys</span><span>Sells</span>
+                </div>
+                <div className="mb-1 flex justify-between text-white">
+                  <span>${formatNumber(volume24hUsd)}</span><span>${formatNumber(buyVolume)}</span><span>${formatNumber(sellVolume)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-0.5 bg-green-400" />
+                  <div className="h-0.5 bg-red-400" />
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between text-[#8fa4bb]">
+                  <span>Makers</span><span>Buys</span><span>Sells</span>
+                </div>
+                <div className="mb-1 flex justify-between text-white">
+                  <span>{formatNumber(makers)}</span><span>{formatNumber(buyMakers)}</span><span>{formatNumber(sellMakers)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-0.5 bg-green-400" />
+                  <div className="h-0.5 bg-red-400" />
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Description */}
-          <p className="text-gray-400 mt-4">{tokenDescription}</p>
-
-          {/* Social Links */}
-          {token.socials && (
-            <div className="flex items-center space-x-3 mt-4">
-              {token.socials.twitter && (
-                <a
-                  href={token.socials.twitter}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  <Twitter className="w-4 h-4" />
-                  <span>Twitter</span>
-                </a>
-              )}
-              {token.socials.telegram && (
-                <a
-                  href={token.socials.telegram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Telegram</span>
-                </a>
-              )}
-              {token.socials.website && (
-                <a
-                  href={token.socials.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>Website</span>
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-surface rounded-xl border border-gray-800 p-4">
-            <p className="text-sm text-gray-500">Price</p>
-            <p className="text-xl font-bold">
-              {priceLoading ? <span className="text-gray-400">Loading...</span> : formatPrice(price || 0, solPriceUsd)}
-            </p>
-          </div>
-          <div className="bg-surface rounded-xl border border-gray-800 p-4">
-            <p className="text-sm text-gray-500">Market Cap</p>
-            <p className="text-xl font-bold">
-              {priceLoading ? <span className="text-gray-400">Loading...</span> : `$${formatNumber(marketCapUsd || 0)}`}
-            </p>
-          </div>
-          <div className="bg-surface rounded-xl border border-gray-800 p-4">
-            <p className="text-sm text-gray-500">SOL Raised</p>
-            <p className="text-xl font-bold">{realSol.toFixed(2)} SOL</p>
-          </div>
-          <div className="bg-surface rounded-xl border border-gray-800 p-4">
-            <p className="text-sm text-gray-500">Holders</p>
-            <p className="text-xl font-bold flex items-center">
-              <Users className="w-5 h-5 mr-2 text-gray-400" />
-              {holders}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Graduation Progress */}
-      {!token.graduated && (
-        <div className="bg-surface rounded-xl border border-gray-800 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-400">Graduation Progress</span>
-            <span className="text-sm font-medium">
-              {isGraduating ? (
-                <span className="flex items-center text-primary-400">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Graduating to Meteora...
-                </span>
-              ) : (
-                `${graduationProgress.toFixed(1)}% to Meteora`
-              )}
-            </span>
-          </div>
-          <div className="h-3 bg-surface-light rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                isGraduating 
-                  ? 'bg-gradient-to-r from-primary-500 to-primary-400 animate-pulse'
-                  : 'bg-gradient-to-r from-primary-500 to-primary-400'
-              }`}
-              style={{ width: `${graduationProgress}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            {isGraduating
-              ? 'Creating Meteora DLMM pool and adding liquidity...'
-              : `When ${graduationThreshold} SOL is raised, liquidity moves to Meteora`
-            }
-          </p>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart and History */}
-        <div className="lg:col-span-2 space-y-6">
-          <PriceChart mint={mint} />
-          <TransactionHistory mint={mint} />
-          <CommentSection mint={mint} />
-        </div>
-
-        {/* Trade Panel */}
-        <div className="lg:col-span-1">
-          <TradePanel token={tradeToken} onTradeSuccess={handleTradeSuccess} />
-        </div>
-      </div>
-
-      {/* Footer Info */}
-      <div className="flex items-center justify-between text-sm text-gray-500">
-        <div className="flex items-center space-x-1">
-          <Clock className="w-4 h-4" />
-          <span>Created {formatTimeAgo(new Date(token.createdAt).getTime())}</span>
-        </div>
-        <div>
-          <span>Creator: </span>
-          <a
-            href={`/profile/${token.creatorAddress}`}
-            className="text-primary-400 hover:underline"
-          >
-            {shortenAddress(token.creatorAddress, 4)}
-          </a>
         </div>
       </div>
     </div>

@@ -210,18 +210,18 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
       
       const chart = createChart(chartContainerRef.current, {
         layout: {
-          background: { type: ColorType.Solid, color: '#131722' },
-          textColor: '#787b86',
+          background: { type: ColorType.Solid, color: '#08172A' },
+          textColor: '#8fa4bb',
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           fontSize: 11,
         },
         grid: {
           vertLines: { 
-            color: 'rgba(42, 46, 57, 0.5)',
+            color: 'rgba(31, 58, 89, 0.45)',
             visible: false,
           },
           horzLines: { 
-            color: 'rgba(42, 46, 57, 0.5)',
+            color: 'rgba(31, 58, 89, 0.45)',
           },
         },
         width: chartContainerRef.current.clientWidth,
@@ -232,25 +232,25 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
             color: 'rgba(255, 255, 255, 0.2)',
             width: 1,
             style: 3,
-            labelBackgroundColor: '#2a2e39',
+            labelBackgroundColor: '#1a2f46',
           },
           horzLine: {
             color: 'rgba(255, 255, 255, 0.2)',
             width: 1,
             style: 3,
-            labelBackgroundColor: '#2a2e39',
+            labelBackgroundColor: '#1a2f46',
           },
         },
         rightPriceScale: {
-          borderColor: 'rgba(42, 46, 57, 0.5)',
-          textColor: '#787b86',
+          borderColor: 'rgba(31, 58, 89, 0.55)',
+          textColor: '#8fa4bb',
           scaleMargins: {
             top: 0.05,
             bottom: 0.2,
           },
         },
         timeScale: {
-          borderColor: 'rgba(42, 46, 57, 0.5)',
+          borderColor: 'rgba(31, 58, 89, 0.55)',
           timeVisible: true,
           secondsVisible: false,
           barSpacing: 6,
@@ -276,12 +276,12 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
 
       // Add candlestick series - pump.fun thin candle style
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        borderDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
+        upColor: '#1fd1c2',
+        downColor: '#ff4d6d',
+        borderUpColor: '#1fd1c2',
+        borderDownColor: '#ff4d6d',
+        wickUpColor: '#1fd1c2',
+        wickDownColor: '#ff4d6d',
         borderVisible: false,
       });
 
@@ -377,9 +377,9 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
   };
 
   return (
-    <div className="bg-[#131722] rounded-lg overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-[#1f3a59] bg-[#08172A]">
       {/* Header with OHLC data - pump.fun style */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2e39]">
+      <div className="flex items-center justify-between border-b border-[#1f3a59] px-3 py-2">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
             {timeRanges.map((range) => (
@@ -389,7 +389,7 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
                 className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
                   timeRange === range
                     ? 'bg-[#26a69a] text-black'
-                    : 'text-[#787b86] hover:text-white hover:bg-[#2a2e39]'
+                    : 'text-[#8fa4bb] hover:text-white hover:bg-[#1a2f46]'
                 }`}
               >
                 {range}
@@ -400,17 +400,17 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
           {/* OHLC Display */}
           {ohlcData && (
             <div className="flex items-center gap-3 text-xs font-mono">
-              <span className="text-[#787b86]">O <span className={ohlcData.close >= ohlcData.open ? 'text-[#26a69a]' : 'text-[#ef5350]'}>{formatPrice(ohlcData.open)}</span></span>
-              <span className="text-[#787b86]">H <span className={ohlcData.close >= ohlcData.open ? 'text-[#26a69a]' : 'text-[#ef5350]'}>{formatPrice(ohlcData.high)}</span></span>
-              <span className="text-[#787b86]">L <span className={ohlcData.close >= ohlcData.open ? 'text-[#26a69a]' : 'text-[#ef5350]'}>{formatPrice(ohlcData.low)}</span></span>
-              <span className="text-[#787b86]">C <span className={ohlcData.close >= ohlcData.open ? 'text-[#26a69a]' : 'text-[#ef5350]'}>{formatPrice(ohlcData.close)}</span></span>
+              <span className="text-[#8fa4bb]">O <span className={ohlcData.close >= ohlcData.open ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}>{formatPrice(ohlcData.open)}</span></span>
+              <span className="text-[#8fa4bb]">H <span className={ohlcData.close >= ohlcData.open ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}>{formatPrice(ohlcData.high)}</span></span>
+              <span className="text-[#8fa4bb]">L <span className={ohlcData.close >= ohlcData.open ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}>{formatPrice(ohlcData.low)}</span></span>
+              <span className="text-[#8fa4bb]">C <span className={ohlcData.close >= ohlcData.open ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}>{formatPrice(ohlcData.close)}</span></span>
             </div>
           )}
         </div>
         
         <div className="flex items-center gap-3">
           {currentPrice && (
-            <span className={`text-sm font-medium ${priceChange >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
+            <span className={`text-sm font-medium ${priceChange >= 0 ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}`}>
               {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
             </span>
           )}
@@ -418,8 +418,8 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
       </div>
       
       {/* Volume label */}
-      <div className="px-3 py-1 text-xs text-[#787b86]">
-        Volume <span className={ohlcData && ohlcData.close >= ohlcData.open ? 'text-[#26a69a]' : 'text-[#ef5350]'}>
+      <div className="px-3 py-1 text-xs text-[#8fa4bb]">
+        Volume <span className={ohlcData && ohlcData.close >= ohlcData.open ? 'text-[#1fd1c2]' : 'text-[#ff4d6d]'}>
           {ohlcData?.volume?.toFixed(4) || '0'} SOL
         </span>
       </div>
@@ -427,17 +427,17 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
       {/* Chart container */}
       <div className="relative h-[400px]">
         {loading && trades.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#131722] z-10">
-            <Loader2 className="w-8 h-8 animate-spin text-[#787b86]" />
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#08172A]">
+            <Loader2 className="h-8 w-8 animate-spin text-[#8fa4bb]" />
           </div>
         )}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#131722] z-10 text-[#787b86]">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#08172A] text-[#8fa4bb]">
             {error}
           </div>
         )}
         {!loading && trades.length === 0 && !error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#131722] z-10 text-[#787b86]">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#08172A] text-[#8fa4bb]">
             <span className="text-lg">No trades yet</span>
             <span className="text-sm mt-1">Be the first to trade!</span>
           </div>

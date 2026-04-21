@@ -2,7 +2,7 @@
 
 import { FC, useState, useMemo, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { ArrowUpDown, Loader2, AlertTriangle, Rocket, ExternalLink, Zap } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, getAccount } from '@solana/spl-token';
 import toast from 'react-hot-toast';
@@ -385,15 +385,18 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
     }
   };
 
+  const quickBuyAmounts = [0.1, 0.5, 1, 2];
+  const quickSellPercents = [25, 50, 75, 100];
+
   return (
-    <div className="bg-surface rounded-xl border border-gray-800 p-4 sticky top-24">
+    <div className="rounded-2xl border border-[#1f3a59] bg-[#08172A] p-4">
       {/* Mode Toggle */}
-      <div className="flex rounded-lg bg-surface-light p-1 mb-4">
+      <div className="mb-4 flex rounded-xl bg-[#15263d] p-1">
         <button
           onClick={() => setMode('buy')}
           className={`flex-1 py-2 rounded-md font-medium transition-colors ${
             mode === 'buy'
-              ? 'bg-primary-500 text-white'
+              ? 'bg-[#45ef56] text-[#08172A]'
               : 'text-gray-400 hover:text-white'
           }`}
         >
@@ -403,8 +406,8 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
           onClick={() => setMode('sell')}
           className={`flex-1 py-2 rounded-md font-medium transition-colors ${
             mode === 'sell'
-              ? 'bg-red-500 text-white'
-              : 'text-gray-400 hover:text-white'
+              ? 'bg-[#ef4444] text-white'
+              : 'text-[#90a6bd] hover:text-white'
           }`}
         >
           Sell
@@ -415,13 +418,11 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
       <div className="space-y-4">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-gray-400">
-              {mode === 'buy' ? 'You Pay' : 'You Sell'}
-            </label>
-            <span className="text-sm text-gray-500">
+            <label className="text-xs text-[#90a6bd]">Quantity</label>
+            <span className="text-sm text-[#8fa2b8]">
               Balance: {mode === 'buy' 
-                ? `${userSolBalance.toFixed(4)} SOL`
-                : `${formatNumber(userTokenBalance)} ${token.symbol}`
+                ? userSolBalance.toFixed(0)
+                : formatNumber(userTokenBalance)
               }
             </span>
           </div>
@@ -430,133 +431,84 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="input-field pr-20 text-lg"
+              placeholder="1"
+              className="w-full rounded-xl border border-[#2d4867] bg-[#14263d] px-4 py-3 pr-28 text-xl font-semibold text-white placeholder:text-[#89a0b8] focus:outline-none"
               disabled={isSubmitting}
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-              <button
-                onClick={handleMaxClick}
-                className="text-xs text-primary-400 hover:text-primary-300"
-              >
-                MAX
-              </button>
-              <span className="text-gray-400">
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <div className="rounded-xl bg-[#061427] px-3 py-1.5 text-sm font-semibold text-white">
                 {mode === 'buy' ? 'SOL' : token.symbol}
-              </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Arrow */}
-        <div className="flex justify-center">
-          <div className="bg-surface-light rounded-full p-2">
-            <ArrowUpDown className="w-5 h-5 text-gray-400" />
+        <div className="flex items-center gap-2">
+          {mode === 'buy'
+            ? quickBuyAmounts.map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setAmount(String(value))}
+                  className="rounded-full bg-[#15263d] px-2 py-1 text-[10px] font-semibold text-[#d4e4f5]"
+                >
+                  {value} SOL
+                </button>
+              ))
+            : quickSellPercents.map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setAmount(((userTokenBalance * value) / 100).toString())}
+                  className="rounded-full bg-[#15263d] px-2 py-1 text-[10px] font-semibold text-[#d4e4f5]"
+                >
+                  {value}%
+                </button>
+              ))}
+          <button
+            onClick={handleMaxClick}
+            className="rounded-full bg-[#15263d] px-2 py-1 text-[10px] font-semibold text-[#d4e4f5]"
+          >
+            Max
+          </button>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-[#90a6bd]">Slippage Tolerance</span>
+            <span className="text-xs text-[#90a6bd]">{slippage}%</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            {[1, 3, 5, 10].map((value) => (
+              <button
+                key={value}
+                onClick={() => setSlippage(value)}
+                className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-colors ${
+                  slippage === value
+                    ? 'bg-white text-[#08172A]'
+                    : 'bg-[#15263d] text-[#8ea3b8] hover:text-white'
+                }`}
+              >
+                {value}%
+              </button>
+            ))}
+            <button className="rounded-full bg-[#15263d] px-2 py-1 text-[10px] font-semibold text-[#8ea3b8]">Auto</button>
           </div>
         </div>
 
-        {/* Output */}
         <div>
-          <label className="text-sm text-gray-400 mb-2 block">
-            {mode === 'buy' ? 'You Receive' : 'You Get'}
-          </label>
-          <div className="bg-surface-light rounded-lg px-4 py-3 text-lg">
-            <span className="text-white">
+          <label className="mb-2 block text-xs text-[#90a6bd]">You Receive</label>
+          <div className="rounded-xl bg-[#14263d] px-4 py-3 text-sm">
+            <span className="text-sm text-[#c7d9eb]">
               {outputAmount > 0 ? formatNumber(outputAmount) : '0.00'}
             </span>
-            <span className="text-gray-400 ml-2">
+            <span className="ml-1 text-sm text-[#9fb2c8]">
               {mode === 'buy' ? token.symbol : 'SOL'}
             </span>
           </div>
         </div>
 
-        {/* Trade Info */}
-        {parseFloat(amount) > 0 && (
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Price Impact</span>
-              <span
-                className={
-                  priceImpact > 5
-                    ? 'text-red-500'
-                    : priceImpact > 2
-                    ? 'text-yellow-500'
-                    : 'text-gray-400'
-                }
-              >
-                {priceImpact.toFixed(2)}%
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Slippage Tolerance</span>
-              <span className="text-gray-400">{slippage}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Trading On</span>
-              <span className={isMeteoraTrading ? 'text-purple-400' : 'text-primary-400'}>
-                {isMeteoraTrading ? 'Meteora DLMM' : 'Bonding Curve'}
-              </span>
-            </div>
-            {!isMeteoraTrading && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">Platform Fee</span>
-                <span className="text-gray-400">1%</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* High Price Impact Warning */}
-        {priceImpact > 5 && (
-          <div className="flex items-start space-x-2 text-yellow-500 bg-yellow-500/10 rounded-lg p-3 text-sm">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-            <span>
-              High price impact! Consider trading a smaller amount.
-            </span>
-          </div>
-        )}
-
-        {/* Quote Error Warning - Insufficient Liquidity */}
         {quoteError && isMeteoraTrading && (
-          <div className="flex items-start space-x-2 text-red-400 bg-red-500/10 rounded-lg p-3 text-sm">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-            <span>{quoteError}</span>
-          </div>
-        )}
-
-        {/* Meteora Trading Badge */}
-        {isMeteoraTrading && (
-          <div className="text-sm bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-lg p-3 border border-purple-500/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Zap className="w-4 h-4 text-purple-400" />
-                <span className="text-purple-300">Trading on Meteora DLMM</span>
-              </div>
-              <a
-                href={`https://app.meteora.ag/dlmm/${token.meteoraPool}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 flex items-center space-x-1"
-            >
-              <span className="text-xs">View Pool</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-            </div>
-            {poolLiquidity && (
-              <div className="mt-2 pt-2 border-t border-purple-500/20 text-xs text-gray-400">
-                Pool Liquidity: {formatNumber(poolLiquidity.totalSol)} SOL / {formatNumber(poolLiquidity.totalTokens)} {token.symbol}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Token Graduated but no pool yet */}
-        {token.graduated && !token.meteoraPool && (
-          <div className="flex items-start space-x-2 text-yellow-400 bg-yellow-500/10 rounded-lg p-3 text-sm">
-            <Rocket className="w-5 h-5 flex-shrink-0" />
-            <span>
-              This token has graduated! Meteora pool creation is pending. Check back soon.
-            </span>
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+            {quoteError}
           </div>
         )}
 
@@ -565,13 +517,11 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
           <button
             onClick={handleTrade}
             disabled={isSubmitting || !connected}
-            className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
-              isMeteoraTrading
-                ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white'
-                : mode === 'buy'
-                ? 'bg-primary-500 hover:bg-primary-600 text-white'
-                : 'bg-red-500 hover:bg-red-600 text-white'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`w-full rounded-xl py-3 text-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              mode === 'buy'
+                ? 'bg-[#45ef56] text-[#08172A] hover:bg-[#39da4c]'
+                : 'bg-[#ef4444] text-white hover:bg-[#dc2626]'
+            }`}
         >
           {isSubmitting ? (
             <>
@@ -581,35 +531,10 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
           ) : !connected ? (
             <span>Connect Wallet</span>
           ) : (
-            <>
-              {isMeteoraTrading && <Zap className="w-4 h-4" />}
-              <span>{mode === 'buy' ? 'Buy' : 'Sell'} {token.symbol}</span>
-            </>
+            <span>{mode === 'buy' ? 'Buy' : 'Sell'}</span>
           )}
         </button>
         )}
-      </div>
-
-      {/* Slippage Settings */}
-      <div className="mt-4 pt-4 border-t border-gray-800">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-400">Slippage Tolerance</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          {[0.5, 1, 2, 5].map((value) => (
-            <button
-              key={value}
-              onClick={() => setSlippage(value)}
-              className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                slippage === value
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-surface-light text-gray-400 hover:text-white'
-              }`}
-            >
-              {value}%
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
