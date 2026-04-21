@@ -265,24 +265,24 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
         key={comment.id}
         className={`${isReply ? 'ml-8 border-l-2 border-gray-700 pl-4' : ''}`}
       >
-        <div className="bg-surface rounded-lg border border-gray-800 p-4">
+        <div className="rounded-xl border border-[#1f3a59] bg-[#0d2138] p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
               <a
                 href={`/profile/${comment.authorAddress}`}
-                className="text-primary-400 hover:underline font-medium"
+                className="font-medium text-[#7bc6ff] hover:underline"
               >
                 {shortenAddress(comment.authorAddress, 4)}
               </a>
-              <span className="text-gray-500 text-sm">
+              <span className="text-sm text-[#8fa4bb]">
                 {formatTimeAgo(new Date(comment.createdAt).getTime())}
               </span>
             </div>
             {isAuthor && (
               <button
                 onClick={() => handleDelete(comment.id)}
-                className="text-gray-500 hover:text-red-400 transition-colors"
+                className="text-[#8fa4bb] transition-colors hover:text-red-400"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -290,13 +290,13 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
           </div>
 
           {/* Content */}
-          <p className="text-gray-200 whitespace-pre-wrap break-words">{comment.content}</p>
+          <p className="break-words whitespace-pre-wrap text-[#d8e5f1]">{comment.content}</p>
 
           {/* Actions */}
           <div className="flex items-center space-x-4 mt-3">
             <button
               onClick={() => handleLike(comment.id)}
-              className="flex items-center space-x-1 text-gray-400 hover:text-red-400 transition-colors"
+              className="flex items-center space-x-1 text-[#8fa4bb] transition-colors hover:text-red-400"
             >
               <Heart className="w-4 h-4" />
               <span className="text-sm">{comment.likes || comment._count?.likedBy || 0}</span>
@@ -304,7 +304,7 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
             {!isReply && (
               <button
                 onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                className="flex items-center space-x-1 text-gray-400 hover:text-primary-400 transition-colors"
+                className="flex items-center space-x-1 text-[#8fa4bb] transition-colors hover:text-[#7bc6ff]"
               >
                 <Reply className="w-4 h-4" />
                 <span className="text-sm">Reply</span>
@@ -313,7 +313,7 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
             {!isReply && hasReplies && (
               <button
                 onClick={() => toggleReplies(comment.id)}
-                className="flex items-center space-x-1 text-gray-400 hover:text-white transition-colors"
+                className="flex items-center space-x-1 text-[#8fa4bb] transition-colors hover:text-white"
               >
                 {isExpanded ? (
                   <>
@@ -341,13 +341,13 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
                   value={replyContent}
                   onChange={e => setReplyContent(e.target.value)}
                   placeholder="Write a reply..."
-                  className="flex-1 bg-surface-light rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 border border-gray-700"
+                  className="flex-1 rounded-lg border border-[#2d4867] bg-[#14263d] px-4 py-2 text-white placeholder:text-[#8fa4bb] focus:outline-none focus:ring-1 focus:ring-[#45ef56]"
                   maxLength={500}
                 />
                 <button
                   onClick={() => handleSubmitReply(comment.id)}
                   disabled={submitting || !replyContent.trim()}
-                  className="bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors"
+                  className="rounded-lg bg-[#45ef56] px-4 py-2 text-[#08172A] transition-colors hover:bg-[#39da4c] disabled:cursor-not-allowed disabled:bg-[#3d4b5d]"
                 >
                   {submitting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -372,7 +372,7 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
 
   if (loading) {
     return (
-      <div className="bg-surface rounded-xl border border-gray-800 p-6">
+      <div className="rounded-xl border border-[#1f3a59] bg-[#08172A] p-6">
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>
@@ -381,8 +381,8 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
   }
 
   return (
-    <div className="bg-surface rounded-xl border border-gray-800 p-6">
-      <h3 className="text-xl font-bold mb-4 flex items-center">
+    <div className="rounded-xl border border-[#1f3a59] bg-[#08172A] p-6">
+      <h3 className="mb-4 flex items-center text-xl font-bold">
         <MessageCircle className="w-5 h-5 mr-2" />
         Comments ({comments.length})
       </h3>
@@ -396,13 +396,13 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
             onChange={e => setNewComment(e.target.value)}
             placeholder={publicKey ? "Write a comment..." : "Connect wallet to comment"}
             disabled={!publicKey}
-            className="flex-1 bg-surface-light rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 border border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 rounded-lg border border-[#2d4867] bg-[#14263d] px-4 py-3 text-white placeholder:text-[#8fa4bb] focus:outline-none focus:ring-1 focus:ring-[#45ef56] disabled:cursor-not-allowed disabled:opacity-50"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={submitting || !publicKey || !newComment.trim()}
-            className="bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg transition-colors"
+            className="rounded-lg bg-[#4a5a6f] px-6 py-3 text-white transition-colors hover:bg-[#5b6e86] disabled:cursor-not-allowed disabled:bg-[#3d4b5d]"
           >
             {submitting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -411,14 +411,14 @@ export const CommentSection: FC<CommentSectionProps> = ({ mint }) => {
             )}
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-1">{newComment.length}/500 characters</p>
+        <p className="mt-1 text-xs text-[#8fa4bb]">{newComment.length}/500 characters</p>
       </form>
 
       {/* Comments List */}
       <div className="space-y-4">
         {comments.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+          <div className="py-8 text-center text-[#8fa4bb]">
+            <MessageCircle className="mx-auto mb-2 h-12 w-12 opacity-50" />
             <p>No comments yet. Be the first to comment!</p>
           </div>
         ) : (
