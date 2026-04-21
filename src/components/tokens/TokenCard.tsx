@@ -3,50 +3,27 @@
 import { FC, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { TrendingUp, TrendingDown, Users, Rocket } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users } from 'lucide-react';
 import { formatNumber, formatPrice, formatTimeAgo } from '@/lib/utils';
 import { useSolPrice } from '@/hooks/useSolPrice';
 import type { Token } from '@/hooks/useApi';
 
-interface TokenCardProps {
-  token: Token | {
-    mint: string;
-    name: string;
-    symbol: string;
-    image?: string;
-    marketCap: number;
-    price: number;
-    priceChange24h: number;
-    volume24h: number;
-    createdAt: number | Date;
-    graduated: boolean;
-    realSolReserves?: bigint | number | string;
-    virtualSolReserves?: bigint | number | string;
-    virtualTokenReserves?: bigint | number | string;
-    _count?: {
-      holders?: number;
-    };
-  };
-}
-
-export const TokenCard: FC<TokenCardProps> = ({ token }) => {
+export const TokenCard: FC<{ token: Token }> = ({ token }) => {
   const priceChange = token.priceChange24h || 0;
   const isPositive = priceChange >= 0;
   const holders = token._count?.holders || 0;
+
   const defaultImage = `https://api.dicebear.com/7.x/shapes/svg?seed=${token.mint}`;
-  
-  // Get dynamic SOL price
+
   const { price: solPriceUsd } = useSolPrice();
 
-  // Calculate market cap based on current bonding curve price
+  // 🔥 SAME MARKET CAP LOGIC (UNCHANGED)
   const liquidityMarketCap = useMemo(() => {
     const TOTAL_SUPPLY = 1_000_000_000;
-    
+
     const virtualSol = Number(token.virtualSolReserves || 0) / 1e9;
     const virtualTokens = Number(token.virtualTokenReserves || 0) / 1e6;
-    
-    // Market cap = Current Price × Total Supply
-    // Current Price = virtualSol / virtualTokens (bonding curve price)
+
     if (virtualTokens > 0 && virtualSol > 0) {
       const currentPrice = virtualSol / virtualTokens;
       return currentPrice * TOTAL_SUPPLY * solPriceUsd;
@@ -56,80 +33,128 @@ export const TokenCard: FC<TokenCardProps> = ({ token }) => {
 
   return (
     <Link href={`/token/${token.mint}`}>
-      <div className="token-card card-glow group">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-surface-light">
-              <Image
-                src={token.image || defaultImage}
-                alt={token.name}
-                fill
-                className="object-cover"
-              />
-            </div>
+      <div className="relative rounded-2xl overflow-hidden bg-[#08172A] hover:scale-[1.02] transition-all duration-300 cursor-pointer">
+
+        {/* 🔥 TOP BANNER */}
+        <div className="relative h-[110px] w-full">
+          <Image
+            src={token.image || defaultImage}
+            alt={token.name}
+            fill
+            className="object-cover"
+          />
+
+   
+        <div
+        className={`absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
+          isPositive ? 'bg-[#09182b] text-[#84FF00]' : 'bg-red-500 text-white'
+        }`}
+      >
+        {isPositive ? (
+          <TrendingUp className="w-3 h-3" />
+        ) : (
+          <TrendingDown className="w-3 h-3" />
+        )}
+
+        <span>
+          {Math.abs(priceChange).toFixed(2)}%
+        </span>
+      </div>
+        </div>
+
+        {/* 🔥 CONTENT */}
+        <div className="relative px-4 pb-4 pt-10">
+
+          {/* FLOATING AVATAR */}
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-xl overflow-hidden border-2 border-[#071B2F] shadow-lg">
+            <Image
+              src={token.image || defaultImage}
+              alt={token.name}
+              fill
+              className="object-cover"
+            />
+          </div>
+
+          {/* NAME */}
+          <div className="text-center mt-2">
+            <h3 className="text-white font-semibold">{token.name}</h3>
+            <p className="text-xs text-gray-400">${token.symbol}</p>
+          </div>
+
+          {/* PRICE */}
+          <div className="flex justify-between items-center mt-4">
             <div>
-              <h3 className="font-semibold group-hover:text-primary-500 transition-colors">
-                {token.name}
-              </h3>
-              <p className="text-sm text-gray-500">${token.symbol}</p>
+              <p className="text-xs text-gray-400">Price</p>
+              <p className="text-white font-medium">
+                {formatPrice(token.price || 0, solPriceUsd)}
+              </p>
+            </div>
+
+            <div className={`${isPositive ? 'text-green-400' : 'text-red-400'} flex items-center gap-1`}>
+              {isPositive ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
+              <span className="text-sm font-medium">
+                {isPositive ? '+' : ''}{priceChange.toFixed(2)}%
+              </span>
             </div>
           </div>
-          {token.graduated && (
-            <div className="flex items-center space-x-1 text-xs bg-primary-500/20 text-primary-400 px-2 py-1 rounded-full">
-              <Rocket className="w-3 h-3" />
-              <span>Graduated</span>
+
+          {/* STATS */}
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="bg-[#182536] rounded-xl p-2 ">
+              <p className="text-[13px] text-gray-400">MarketCap</p>
+              <p className="text-white text-sm font-medium">
+                ${formatNumber(liquidityMarketCap)}
+              </p>
             </div>
-          )}
-        </div>
 
-        {/* Price and change */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-sm text-gray-500">Price</p>
-            <p className="font-semibold">{formatPrice(token.price || 0, solPriceUsd)}</p>
-          </div>
-          <div
-            className={`flex items-center space-x-1 ${
-              isPositive ? 'text-green-500' : 'text-red-500'
-            }`}
-          >
-            {isPositive ? (
-              <TrendingUp className="w-4 h-4" />
-            ) : (
-              <TrendingDown className="w-4 h-4" />
-            )}
-            <span className="font-medium">
-              {isPositive ? '+' : ''}
-              {priceChange.toFixed(2)}%
-            </span>
-          </div>
-        </div>
+            <div className="bg-[#182536] rounded-xl p-2 ">
+              <p className="text-[13px] text-gray-400">Volume</p>
+              <p className="text-white text-sm font-medium">
+                ${formatNumber((token.volume24h || 0) * solPriceUsd)}
+              </p>
+            </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          <div className="bg-surface-light rounded-lg p-2 text-center">
-            <p className="text-gray-500 text-xs">MCap</p>
-            <p className="font-medium">${formatNumber(liquidityMarketCap)}</p>
+            <div className="bg-[#182536] rounded-xl p-2 ">
+              <p className="text-[13px] text-gray-400">Holders</p>
+              <p className="text-white text-sm font-medium flex items-center  gap-1">
+                <Users size={12}/>
+                {holders}
+              </p>
+            </div>
           </div>
-          <div className="bg-surface-light rounded-lg p-2 text-center">
-            <p className="text-gray-500 text-xs">Vol 24h</p>
-            <p className="font-medium">${formatNumber((token.volume24h || 0) * solPriceUsd)}</p>
-          </div>
-          <div className="bg-surface-light rounded-lg p-2 text-center">
-            <p className="text-gray-500 text-xs">Holders</p>
-            <p className="font-medium flex items-center justify-center">
-              <Users className="w-3 h-3 mr-1" />
-              {holders}
-            </p>
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-3 pt-3 border-t border-gray-800">
-          <p className="text-xs text-gray-500">
-            Created {formatTimeAgo(typeof token.createdAt === 'number' ? token.createdAt : new Date(token.createdAt).getTime())}
-          </p>
+          {/* FOOTER */}
+<div className="mt-4 flex items-center justify-between text-xs">
+
+  {/* LEFT — CREATOR */}
+  <div className="flex items-center gap-2 text-[#6FA8FF]">
+    
+    {/* 🦆 IMAGE */}
+    <img
+      src="/images/duck.png"
+      alt="creator"
+      className="w-4 h-4 object-contain"
+    />
+
+    {/* ADDRESS */}
+    <span className="font-medium">
+      {token.creatorAddress.slice(0, 4)}...
+      {token.creatorAddress.slice(-4)}
+    </span>
+
+  </div>
+
+  {/* RIGHT — TIME */}
+  <div className="text-gray-400">
+    Created {formatTimeAgo(
+      typeof token.createdAt === 'number'
+        ? token.createdAt
+        : new Date(token.createdAt).getTime()
+    )}
+  </div>
+
+</div>
+
         </div>
       </div>
     </Link>

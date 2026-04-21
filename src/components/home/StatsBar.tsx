@@ -1,68 +1,280 @@
 'use client';
 
-import { FC } from 'react';
-import { Coins, Users, TrendingUp, Rocket, Loader2 } from 'lucide-react';
-import { useVolumeStats, useTokens } from '@/hooks/useApi';
+import { FC, useEffect, useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useTokens, Token } from '@/hooks/useApi';
+import { useSocket } from '@/components/providers/SocketProvider';
+import { useSolPrice } from '@/hooks/useSolPrice';
+import toast from 'react-hot-toast';
 
-interface StatItemProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  isLoading?: boolean;
-}
+/* ─── Constants ─────────────────────────────────────── */
+const GRADUATING_MC_MIN = 30000;
+const GRADUATING_MC_MAX = 70000;
+const TOTAL_SUPPLY = 1_000_000_000;
 
-const StatItem: FC<StatItemProps> = ({ icon, label, value, isLoading }) => (
-  <div className="flex items-center space-x-3 bg-surface rounded-xl border border-gray-800 px-4 py-3">
-    <div className="text-primary-500">{icon}</div>
-    <div>
-      <p className="text-sm text-gray-400">{label}</p>
+const formatMC = (v: number) => {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(2)}K`;
+  return `$${v.toFixed(0)}`;
+};
+
+const timeAgo = (d: string) => {
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h`;
+};
+
+const initials = (name: string) =>
+  name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+
+type Variant = 'new' | 'graduating' | 'listed';
+
+const PALETTES = [
+  { bg: '#1a1208', color: '#d4914a' },
+  { bg: '#1a0a2e', color: '#a78bfa' },
+  { bg: '#1e1000', color: '#d97706' },
+  { bg: '#101810', color: '#6dbe5a' },
+  { bg: '#0d1825', color: '#5b9fd4' },
+  { bg: '#1e1205', color: '#d4914a' },
+  { bg: '#1e1020', color: '#c084fc' },
+];
+const palette = (name: string) => PALETTES[name.charCodeAt(0) % PALETTES.length];
+
+const BAR: Record<Variant, string> = {
+  new: '#3b82f6',
+  graduating: 'linear-gradient(90deg,#3b82f6,#f97316)',
+  listed: 'linear-gradient(90deg,#a855f7,#f97316)',
+};
+
+const HEADER: Record<Variant, string> = {
+  new: '#08172A',
+  graduating: 'linear-gradient(90deg, #6E45FF 0%, #E04B29 50%, #F57B00 100%)',
+  listed: 'linear-gradient(90deg, #4284FD 50%, #FE9216 100%)',
+};
+
+const PANEL_ICON: Record<Variant, string> = {
+  new: '👀',
+  graduating: '🎓',
+  listed: '🔥',
+};
+
+/* ─── Helpers ─────────────────────────────────────────── */
+const getRealMarketCap = (token: Token, solPriceUsd: number) => {
+  const virtualSol = Number(token.virtualSolReserves || 0) / 1e9;
+  const virtualTokens = Number(token.virtualTokenReserves || 0) / 1e6;
+
+  if (virtualTokens > 0 && virtualSol > 0) {
+    const currentPriceInSol = virtualSol / virtualTokens;
+    return currentPriceInSol * TOTAL_SUPPLY * solPriceUsd;
+  }
+
+  return token.marketCap || 0;
+};
+
+/* ─── Token Row ───────────────────────────────────────── */
+const TokenRow: FC<{ token: Token; variant: Variant }> = ({ token, variant }) => {
+  const { price: solPriceUsd } = useSolPrice();
+  const [imgError, setImgError] = useState(false);
+
+  const av = palette(token.name);
+  const defaultImage = `https://api.dicebear.com/7.x/shapes/svg?seed=${token.mint}`;
+
+  const realMC = useMemo(
+    () => getRealMarketCap(token, solPriceUsd),
+    [token, solPriceUsd]
+  );
+
+  const pct =
+    variant === 'listed'
+      ? 100
+      : Math.min(100, Math.round((realMC / GRADUATING_MC_MAX) * 100));
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: 12,
+        background: '#081728',
+        borderRadius: 14,
+        marginBottom: 10,
+      }}
+    >
+      {/* Avatar */}
+      <div
+        style={{
+          width: 54,
+          height: 54,
+          borderRadius: 12,
+          flexShrink: 0,
+          overflow: 'hidden',
+          background: av.bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+          color: av.color,
+        }}
+      >
+        {!imgError ? (
+          <img
+            src={token.image || defaultImage}
+            alt={token.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          initials(token.name)
+        )}
+      </div>
+
+      {/* Middle */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <p
+            style={{
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 700,
+              margin: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '60%', // 🔥 responsive fix
+            }}
+          >
+            {token.name}
+          </p>
+
+          <p style={{ color: '#f97316', fontSize: 12 }}>
+            {timeAgo(String(token.createdAt))}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <p style={{ color: '#5a80a0', fontSize: 11 }}>{token.symbol}</p>
+          <p style={{ color: '#8aadcc', fontSize: 12 }}>
+            MC: {formatMC(realMC)}
+          </p>
+        </div>
+
+        <div
+          style={{
+            height: 5,
+            background: '#0f2a45',
+            borderRadius: 10,
+            overflow: 'hidden',
+            marginTop: 6,
+          }}
+        >
+          <div
+            style={{
+              width: `${pct}%`,
+              height: '100%',
+              background: BAR[variant],
+              transition: 'width 0.5s ease',
+            }}
+          />
+        </div>
+
+        <p style={{ textAlign: 'right', fontSize: 11, color: '#6a90b0' }}>
+          {pct}%
+        </p>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Panel ───────────────────────────────────────────── */
+const Panel: FC<{ title: string; tokens: Token[]; isLoading: boolean; variant: Variant }> = ({
+  title, tokens, isLoading, variant,
+}) => (
+  <div style={{ borderRadius: 16, overflow: 'hidden', background: 'rgba(63,76,92,0.5)' }}>
+    <div
+  style={{
+    padding: 14,
+    background: HEADER[variant],
+    color: '#fff',
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  }}
+>
+  {variant === 'listed' ? (
+    <img
+      src="/images/metora.png"
+      alt="metora"
+      style={{ width: 20, height: 20, objectFit: 'contain' }}
+    />
+  ) : (
+    <span>{PANEL_ICON[variant]}</span>
+  )}
+
+  <span style={{fontSize:'18px'}}>{title}</span>
+</div>
+
+    <div
+      style={{
+        padding: 12,
+        maxHeight: 340,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch', // 🔥 mobile smooth scroll
+      }}
+    >
       {isLoading ? (
-        <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
+        <Loader2 className="animate-spin text-gray-400" />
       ) : (
-        <p className="text-lg font-semibold">{value}</p>
+        tokens.map((t) => <TokenRow key={t.mint} token={t} variant={variant} />)
       )}
     </div>
   </div>
 );
 
-export const StatsBar: FC = () => {
-  const { data: volumeData, isLoading: volumeLoading } = useVolumeStats('24h');
-  const { data: allTokens, isLoading: tokensLoading } = useTokens({ limit: 1 });
-  const { data: graduatedTokens, isLoading: graduatedLoading } = useTokens({ graduated: true, limit: 1 });
+/* ─── Main ───────────────────────────────────────────── */
+export const TokenPanels: FC = () => {
+  const [liveNew, setLiveNew] = useState<Token[]>([]);
+  const { socket, connected } = useSocket();
+  const { price: solPriceUsd } = useSolPrice();
 
-  const formatSOL = (lamports: number) => {
-    const sol = lamports / 1_000_000_000;
-    if (sol >= 1000000) return `${(sol / 1000000).toFixed(1)}M SOL`;
-    if (sol >= 1000) return `${(sol / 1000).toFixed(1)}K SOL`;
-    return `${sol.toFixed(2)} SOL`;
-  };
+  const { data: newData } = useTokens({ sort: 'createdAt', order: 'desc', limit: 50 });
+  const { data: gradData } = useTokens({ sort: 'marketCap', order: 'desc', limit: 50 });
+  const { data: listedData } = useTokens({ sort: 'marketCap', order: 'desc', limit: 50, graduated: true });
+
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    socket.on('token:created', (t: Token) => {
+      toast.success(`New token: ${t.name}`);
+      setLiveNew((prev) => [t, ...prev]);
+    });
+  }, [socket, connected]);
+
+  const map = new Map<string, Token>();
+  [...(newData?.tokens ?? []), ...(gradData?.tokens ?? []), ...(listedData?.tokens ?? []), ...liveNew]
+    .forEach((t) => map.set(t.mint, t));
+
+  const all = Array.from(map.values());
+
+  const newList = [...all].sort(
+    (a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime()
+  );
+
+  const graduating = all.filter((t) => {
+    const mc = getRealMarketCap(t, solPriceUsd);
+    return mc >= GRADUATING_MC_MIN && mc < GRADUATING_MC_MAX && !t.graduated;
+  });
+
+  const listed = all.filter((t) => t.graduated);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <StatItem
-        icon={<Coins className="w-5 h-5" />}
-        label="Tokens Created"
-        value={allTokens?.pagination?.total?.toLocaleString() || '0'}
-        isLoading={tokensLoading}
-      />
-      <StatItem
-        icon={<TrendingUp className="w-5 h-5" />}
-        label="24h Volume"
-        value={volumeData ? formatSOL(volumeData.totalVolume) : '0 SOL'}
-        isLoading={volumeLoading}
-      />
-      <StatItem
-        icon={<Users className="w-5 h-5" />}
-        label="24h Trades"
-        value={volumeData?.tradeCount?.toLocaleString() || '0'}
-        isLoading={volumeLoading}
-      />
-      <StatItem
-        icon={<Rocket className="w-5 h-5" />}
-        label="Graduated"
-        value={graduatedTokens?.pagination?.total?.toLocaleString() || '0'}
-        isLoading={graduatedLoading}
-      />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: 16, padding: 16 }}>
+      <Panel title="Newly Created" tokens={newList} isLoading={!newData} variant="new" />
+      <Panel title="Graduating" tokens={graduating} isLoading={!gradData} variant="graduating" />
+      <Panel title="Listed on Meteora" tokens={listed} isLoading={!listedData} variant="listed" />
     </div>
   );
 };
