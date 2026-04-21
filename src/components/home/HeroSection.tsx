@@ -2,80 +2,59 @@
 
 import { FC } from 'react';
 import Link from 'next/link';
-import { Rocket, Zap, Shield, TrendingUp } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const HeroSection: FC = () => {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-900/20 via-surface to-surface border border-gray-800">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary-500/10 via-transparent to-transparent" />
-      
-      <div className="relative px-8 py-16 md:py-24">
-        <div className="max-w-3xl">
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-6xl font-bold mb-6"
-          >
-            Launch Your Token in
-            <span className="gradient-text"> Seconds</span>
-          </motion.h1>
-          
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-lg md:text-xl text-gray-400 mb-8 max-w-2xl"
-          >
-            Create and trade tokens with a fair bonding curve. 
-            No presale, no team allocation. Just launch and let the community decide.
-          </motion.p>
+    <div className="relative overflow-hidden rounded-2xl"  style={{ height: '420px' }}>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-wrap gap-4"
-          >
-            <Link
-              href="/create"
-              className="btn-primary flex items-center space-x-2 text-lg px-6 py-3"
-            >
-              <Rocket className="w-5 h-5" />
-              <span>Create Token</span>
-            </Link>
-            <Link
-              href="#tokens"
-              className="btn-secondary flex items-center space-x-2 text-lg px-6 py-3"
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span>Explore Tokens</span>
-            </Link>
-          </motion.div>
-        </div>
+      {/* VIDEO BACKGROUND — tries mp4, webm, mov in order */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ borderRadius: 'inherit' }}
+      >
+        <source src="/images/mainvideo.mp4" type="video/mp4" />
+        {/* <source src="/images/mainvideo.webm" type="video/webm" />
+        <source src="/images/mainvideo.mov" type="video/quicktime" /> */}
+      </video>
 
-        {/* Feature pills */}
+  
+
+      {/* CONTENT — right-aligned */}
+      <div className="relative flex items-center  h-full px-8 md:px-16" style={{justifyContent:'flex-end'}}>
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="flex flex-wrap gap-3 mt-12"
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-sm "
         >
-          <div className="flex items-center space-x-2 bg-surface-light/50 backdrop-blur px-4 py-2 rounded-full border border-gray-700">
-            <Zap className="w-4 h-4 text-yellow-500" />
-            <span className="text-sm text-gray-300">Instant Launch</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-surface-light/50 backdrop-blur px-4 py-2 rounded-full border border-gray-700">
-            <Shield className="w-4 h-4 text-blue-500" />
-            <span className="text-sm text-gray-300">No Rug Pulls</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-surface-light/50 backdrop-blur px-4 py-2 rounded-full border border-gray-700">
-            <TrendingUp className="w-4 h-4 text-primary-500" />
-            <span className="text-sm text-gray-300">Fair Bonding Curve</span>
-          </div>
+         <h1 className="text-3xl md:text-6xl lg:text-6xl font-semibold text-white mb-4 leading-tight text-left">
+          Launch Fair.<br />Trade Clean.
+        </h1>
+
+        <p className="text-sm md:text-lg lg:text-xl text-gray-200 mb-4 leading-relaxed text-left">
+          Fair token launches from the first trade.<br />
+          Built for transparent pricing, balanced<br />
+          distribution, and real participation.
+        </p>
+
+          <Link
+          
+            href="/create"
+            className="inline-flex items-center gap-2 px-6 py-3 text-white "
+            style={{ backgroundColor: '#FE9216', borderRadius: '14px',textAlign:'left',fontSize:'18px',boxShadow:'0 6px 4px 0 rgba(255, 255, 255, 0.50) inset, 0 72px 20px 0 rgba(254, 146, 22, 0.00), 0 46px 18px 0 rgba(254, 146, 22, 0.03), 0 26px 16px 0 rgba(254, 146, 22, 0.11), 0 12px 12px 0 rgba(254, 146, 22, 0.19), 0 3px 6px 0 rgba(254, 146, 22, 0.22)' }}
+          >
+            <Plus className="w-6 h-6" />
+            <span>Create Token</span>
+          </Link>
         </motion.div>
       </div>
+
     </div>
   );
 };

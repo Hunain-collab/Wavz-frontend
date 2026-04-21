@@ -34,31 +34,25 @@ export const TokenList: FC = () => {
     search: search || undefined,
   });
 
-  // Subscribe to real-time feed
   useEffect(() => {
     if (!socket || !connected) return;
 
     subscribeToFeed();
 
-    // Handle new token created
     const handleNewToken = (token: Token) => {
-      console.log('🆕 New token created:', token.name);
       toast.success(`New token: ${token.name} ($${token.symbol})`, {
         icon: '🚀',
         duration: 4000,
       });
-      
-      // Add to top of list if on page 1
+
       if (page === 1 && sortBy === 'newest') {
         setNewTokens(prev => [token, ...prev].slice(0, 5));
       }
-      // Always refetch to update counts
+
       refetch();
     };
 
-    // Handle token graduated
     const handleGraduated = (data: { mint: string }) => {
-      console.log('🎓 Token graduated:', data.mint);
       refetch();
     };
 
@@ -72,7 +66,6 @@ export const TokenList: FC = () => {
     };
   }, [socket, connected, subscribeToFeed, unsubscribeFromFeed, page, sortBy, refetch]);
 
-  // Clear new tokens when data changes
   useEffect(() => {
     setNewTokens([]);
   }, [data]);
@@ -80,17 +73,16 @@ export const TokenList: FC = () => {
   const tokens = data?.tokens || [];
   const pagination = data?.pagination;
 
-  // Merge new tokens with fetched tokens (avoid duplicates)
-  const displayTokens = [...newTokens.filter(nt => !tokens.some(t => t.mint === nt.mint)), ...tokens];
+  const displayTokens = [
+    ...newTokens.filter(nt => !tokens.some(t => t.mint === nt.mint)),
+    ...tokens,
+  ];
 
   if (error) {
     return (
       <div className="text-center py-12">
         <p className="text-red-500 mb-4">Failed to load tokens</p>
-        <button
-          onClick={() => refetch()}
-          className="btn-primary"
-        >
+        <button onClick={() => refetch()} className="btn-primary" style={{backgroundColor:'#528EFC'}}>
           Retry
         </button>
       </div>
@@ -99,79 +91,102 @@ export const TokenList: FC = () => {
 
   return (
     <div id="tokens" className="space-y-6">
-      {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
+
+      {/* Search + Buttons */}
+      <div className="flex flex-col md:flex-row gap-4" style={{ justifyContent: 'space-between' }}>
+        
         {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search tokens..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-field pl-10"
-          />
-        </div>
+   <div className="w-full md:w-[600px]">
+  <div
+    className="flex items-center h-11 sm:h-12 px-3 sm:px-4"
+    style={{
+      backgroundColor: '#08172A',
+      border: '1px solid #34557D',
+      borderRadius: '12px',
+    }}
+  >
+    {/* ICON */}
+    <Search className="w-4 h-4 sm:w-5 sm:h-5 text-white opacity-60 mr-2 flex-shrink-0" />
 
-        {/* Sort options */}
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setSortBy('trending')}
-            className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors ${
-              sortBy === 'trending'
-                ? 'bg-primary-500 text-white'
-                : 'bg-surface-light text-gray-400 hover:text-white'
-            }`}
-          >
-            <Flame className="w-4 h-4" />
-            <span>Trending</span>
-          </button>
-          <button
-            onClick={() => setSortBy('newest')}
-            className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors ${
-              sortBy === 'newest'
-                ? 'bg-primary-500 text-white'
-                : 'bg-surface-light text-gray-400 hover:text-white'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>New</span>
-          </button>
-          <button
-            onClick={() => setSortBy('marketCap')}
-            className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors ${
-              sortBy === 'marketCap'
-                ? 'bg-primary-500 text-white'
-                : 'bg-surface-light text-gray-400 hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>Market Cap</span>
-          </button>
-        </div>
+    {/* INPUT */}
+    <input
+      type="text"
+      placeholder="Search tokens..."
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      className="w-full bg-transparent outline-none text-sm text-white placeholder-[#ffffff9d]"
+    />
+  </div>
+</div>
 
-        {/* Filter toggle */}
-        <button
-          onClick={() => setShowGraduated(!showGraduated)}
-          className={`flex items-center space-x-1 px-3 py-2 rounded-lg border transition-colors ${
-            showGraduated
-              ? 'border-primary-500 text-primary-500'
-              : 'border-gray-700 text-gray-400'
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          <span>Graduated</span>
-        </button>
+        {/* Buttons */}
+       <div className="flex flex-wrap gap-2">
+
+  {/* Trending */}
+  <button
+    onClick={() => setSortBy('trending')}
+    className={`flex items-center justify-center space-x-2 w-full sm:w-auto px-6 py-3 rounded-[15px] transition-all duration-200 ${
+      sortBy === 'trending'
+        ? 'bg-white text-black'
+        : 'bg-[#182536] text-gray-300 hover:text-white'
+    }`}
+  >
+    <Flame className={`w-6 h-6 ${sortBy === 'trending' ? 'text-black' : 'text-gray-400'}`} />
+    <span className="text-[18px]">Trending</span>
+  </button>
+
+  {/* New */}
+  <button
+    onClick={() => setSortBy('newest')}
+    className={`flex items-center justify-center space-x-2 w-full sm:w-auto px-5 py-3 rounded-[15px] transition-all duration-200 ${
+      sortBy === 'newest'
+        ? 'bg-white text-black'
+        : 'bg-[#182536] text-gray-300 hover:text-white'
+    }`}
+  >
+    <Clock className={`w-6 h-6 ${sortBy === 'newest' ? 'text-black' : 'text-gray-400'}`} />
+    <span className="text-[18px]">New</span>
+  </button>
+
+  {/* Market Cap */}
+  <button
+    onClick={() => setSortBy('marketCap')}
+    className={`flex items-center justify-center space-x-2 w-full sm:w-auto px-5 py-3 rounded-[15px] transition-all duration-200 ${
+      sortBy === 'marketCap'
+        ? 'bg-white text-black'
+        : 'bg-[#182536] text-gray-300 hover:text-white'
+    }`}
+  >
+    <TrendingUp className={`w-6 h-6 ${sortBy === 'marketCap' ? 'text-black' : 'text-gray-400'}`} />
+    <span className="text-[18px]">Market Cap</span>
+  </button>
+
+</div>
       </div>
 
-      {/* Loading State */}
+      {/* 🔥 NEW: Dynamic Heading */}
+      <div className="flex items-center space-x-2">
+
+        {sortBy === 'trending' && <Flame className="w-8 h-8 text-white" />}
+        {sortBy === 'newest' && <Clock className="w-8 h-8 text-white" />}
+        {sortBy === 'marketCap' && <TrendingUp className="w-8 h-8 text-white" />}
+
+        <h2 className="text-2xl md:text-4xl font-semibold text-white">
+          {sortBy === 'trending' && 'Trending Now'}
+          {sortBy === 'newest' && 'New Tokens'}
+          {sortBy === 'marketCap' && 'Market Cap'}
+        </h2>
+
+      </div>
+
+      {/* Loading */}
       {isLoading && (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>
       )}
 
-      {/* Token Grid */}
+      {/* Grid */}
       {!isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {displayTokens.map((token) => (
@@ -190,9 +205,11 @@ export const TokenList: FC = () => {
           >
             Previous
           </button>
+
           <span className="flex items-center px-4 text-gray-400">
             Page {page} of {pagination.pages}
           </span>
+
           <button
             onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
             disabled={page === pagination.pages}
@@ -205,7 +222,7 @@ export const TokenList: FC = () => {
 
       {!isLoading && displayTokens.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          <p>No tokens found matching your criteria.</p>
+          <p>No tokens found </p>
         </div>
       )}
     </div>

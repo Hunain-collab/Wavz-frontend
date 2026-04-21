@@ -7,6 +7,12 @@ module.exports = {
   ],
   theme: {
     extend: {
+       screens: {
+        mobile: '600px',
+      },
+       colors: {
+    cardbg: '#182536',
+  },
       colors: {
         primary: {
           50: '#f0fdf4',
@@ -20,7 +26,7 @@ module.exports = {
           800: '#166534',
           900: '#14532d',
         },
-        background: '#0a0a0a',
+       background: '#050E1A',
         surface: '#141414',
         'surface-light': '#1a1a1a',
       },
