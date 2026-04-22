@@ -231,6 +231,9 @@ export const CreateTokenForm: FC = () => {
             banner: bannerUrl || undefined,
             creatorAddress: publicKey?.toBase58(),
             description: formData.description,
+            twitter: formData.twitter || undefined,
+            telegram: formData.telegram || undefined,
+            website: formData.website || undefined,
           }),
         });
       } catch (dbError) {
