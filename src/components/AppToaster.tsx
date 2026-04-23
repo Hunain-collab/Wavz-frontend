@@ -56,7 +56,7 @@ export const AppToaster = () => {
           {/* TEXT */}
           <div className="flex-1">
             <p className="text-white text-sm font-semibold leading-tight">
-              {t.message}
+              {typeof t.message === 'function' ? t.message(t) : t.message}
             </p>
 
             <p className="text-[11px] text-gray-400">

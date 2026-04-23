@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState, useEffect, useMemo } from 'react';
+import { FC, useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -17,8 +17,7 @@ import { CommentSection } from './CommentSection';
 import { formatNumber, shortenAddress, formatTimeAgo } from '@/lib/utils';
 import { useSocket } from '@/components/providers/SocketProvider';
 import { useSolPrice } from '@/hooks/useSolPrice';
-import { useTokenHolders } from '@/hooks/useApi';
-import { useQueryClient } from '@tanstack/react-query';
+import { useOnChainHolders } from '@/hooks/useOnChainHolders';
 import toast from 'react-hot-toast';
 
 interface TokenDetailProps {
@@ -67,8 +66,10 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
   
   const { socket, subscribeToToken, unsubscribeFromToken, connected } = useSocket();
   const { price: solPriceUsd } = useSolPrice();
-  const { data: holdersData, isLoading: holdersLoading } = useTokenHolders(mint, 50);
-  const queryClient = useQueryClient();
+  const { holders: onChainHolders, loading: holdersLoading, refetch: refetchHolders } = useOnChainHolders(mint);
+  // Keep a ref so the WebSocket effect closure always calls the latest refetch
+  const refetchHoldersRef = useRef(refetchHolders);
+  useEffect(() => { refetchHoldersRef.current = refetchHolders; }, [refetchHolders]);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,8 +199,8 @@ console.log("data",data);
         return { ...prev, ...updates };
       });
 
-      // Invalidate holders query so the holders list and count refresh from the server
-      queryClient.invalidateQueries({ queryKey: ['token-holders', mint] });
+      // Refetch on-chain holders so the list updates immediately after a trade
+      refetchHoldersRef.current();
     };
 
     // Handle ready to graduate event
@@ -454,7 +455,8 @@ console.log("data",data);
   const tokenDescription = metadata?.description || token.description || 'No description available';
   const tokenName = token.name || 'Unknown Token';
   const tokenSymbol = token.symbol || 'UNK';
-  const holders = token._count?.holders || 0;
+  // Prefer on-chain count (always fresh); fall back to DB count if on-chain hasn't loaded yet
+  const holders = onChainHolders.length > 0 ? onChainHolders.length : (token._count?.holders || 0);
   // volume24h in DB is stored in SOL — convert to USD, or use live activityTrades-based calc
   const volume24hUsd = !activityLoading && marketStatsByWindow['24h'].volume > 0
     ? marketStatsByWindow['24h'].volume
@@ -524,7 +526,8 @@ console.log("data",data);
   const makers = holders;
   const buyMakers = Math.round(makers * 0.51);
   const sellMakers = Math.max(makers - buyMakers, 0);
-  const holdersList = (holdersData as any)?.holders || (Array.isArray(holdersData) ? holdersData : []);
+  // On-chain holders: owner resolves to the wallet address, balance is raw (6 decimals)
+  const holdersList = onChainHolders;
   const formatTxnTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
