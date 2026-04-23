@@ -2,7 +2,6 @@
 
 import { FC, useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, ColorType, UTCTimestamp, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
-import { Loader2 } from 'lucide-react';
 import { useSocket } from '@/components/providers/SocketProvider';
 import { AppLoader } from '../Apploader';
 
@@ -10,13 +9,18 @@ interface PriceChartProps {
   mint: string;
 }
 
-interface Trade {
-  signature: string;
-  isBuy: boolean;
-  solAmount: string;
-  tokenAmount: string;
-  price: number;
-  timestamp: string;
+interface CandleBar {
+  time: UTCTimestamp;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface VolumeBar {
+  time: UTCTimestamp;
+  value: number;
+  color: string;
 }
 
 interface OHLCData {
@@ -31,175 +35,147 @@ type TimeRange = '1m' | '5m' | '15m' | '1H' | '4H';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-// Aggregate trades into OHLC candlesticks with volume
-function aggregateToCandles(trades: Trade[], intervalMs: number) {
-  if (trades.length === 0) return { candles: [], volumes: [] };
-
-  const sortedTrades = [...trades].sort((a, b) => 
-    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-
-  const candleMap: Map<number, { 
-    open: number; high: number; low: number; close: number; 
-    time: number; volume: number; isBuyDominant: boolean;
-    buyVolume: number; sellVolume: number;
-  }> = new Map();
-
-  sortedTrades.forEach(trade => {
-    const time = new Date(trade.timestamp).getTime();
-    const candleTime = Math.floor(time / intervalMs) * intervalMs;
-    const price = trade.price;
-    // solAmount is stored in lamports, convert to SOL
-    const volume = parseFloat(trade.solAmount) / 1e9;
-
-    if (candleMap.has(candleTime)) {
-      const candle = candleMap.get(candleTime)!;
-      candle.high = Math.max(candle.high, price);
-      candle.low = Math.min(candle.low, price);
-      candle.close = price;
-      candle.volume += volume;
-      if (trade.isBuy) {
-        candle.buyVolume += volume;
-      } else {
-        candle.sellVolume += volume;
-      }
-      candle.isBuyDominant = candle.buyVolume > candle.sellVolume;
-    } else {
-      candleMap.set(candleTime, {
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        time: candleTime,
-        volume: volume,
-        buyVolume: trade.isBuy ? volume : 0,
-        sellVolume: trade.isBuy ? 0 : volume,
-        isBuyDominant: trade.isBuy,
-      });
-    }
-  });
-
-  const sortedCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
-  
-  const candles = sortedCandles.map(c => ({
-    time: (c.time / 1000) as UTCTimestamp,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-  }));
-
-  // Volume color based on candle direction (pump.fun style)
-  const volumes = sortedCandles.map(c => ({
-    time: (c.time / 1000) as UTCTimestamp,
-    value: c.volume,
-    color: c.close >= c.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)',
-  }));
-
-  return { candles, volumes, sortedCandles };
-}
-
 export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('1m');
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [candles, setCandles] = useState<CandleBar[]>([]);
+  const [volumes, setVolumes] = useState<VolumeBar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number>(0);
   const [chartReady, setChartReady] = useState(false);
   const [ohlcData, setOhlcData] = useState<OHLCData | null>(null);
-  
+  // Track whether initial data has been loaded into the chart
+  const initialLoadDoneRef = useRef(false);
+  // Keep last-fetched dataset ref so WS handler can compute live candle without setState
+  const candlesRef = useRef<CandleBar[]>([]);
+  const volumesRef = useRef<VolumeBar[]>([]);
   const { socket } = useSocket();
 
-  // Get interval in ms based on time range
-  const getIntervalMs = useCallback((range: TimeRange): number => {
+  const getBucketSec = useCallback((range: TimeRange): number => {
     switch (range) {
-      case '1m': return 60 * 1000;
-      case '5m': return 5 * 60 * 1000;
-      case '15m': return 15 * 60 * 1000;
-      case '1H': return 60 * 60 * 1000;
-      case '4H': return 4 * 60 * 60 * 1000;
-      default: return 60 * 1000;
+      case '1m':  return 60;
+      case '5m':  return 300;
+      case '15m': return 900;
+      case '1H':  return 3600;
+      case '4H':  return 14400;
+      default:    return 60;
     }
   }, []);
 
-  // Fetch trades
+  // ── Fetch pre-built OHLC from backend ──────────────────────────────────────
   useEffect(() => {
-    const fetchData = async () => {
+    let cancelled = false;
+    const fetchCandles = async () => {
       setLoading(true);
       setError(null);
-      
       try {
-        const tradesRes = await fetch(`${API_BASE}/api/trades/token/${mint}?limit=1000`);
-        if (tradesRes.ok) {
-          const tradesJson = await tradesRes.json();
-          if (tradesJson.trades && Array.isArray(tradesJson.trades)) {
-            setTrades(tradesJson.trades);
-            
-            // Set current price
-            if (tradesJson.trades.length > 0) {
-              const latestTrade = tradesJson.trades[0];
-              setCurrentPrice(latestTrade.price);
-              
-              // Calculate price change
-              if (tradesJson.trades.length > 1) {
-                const oldestTrade = tradesJson.trades[tradesJson.trades.length - 1];
-                const change = ((latestTrade.price - oldestTrade.price) / oldestTrade.price) * 100;
-                setPriceChange(change);
-              }
-            }
+        const res = await fetch(`${API_BASE}/api/tokens/${mint}/candles?interval=${timeRange}&limit=500`);
+        if (!res.ok) throw new Error('Failed to fetch candles');
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        const c: CandleBar[] = (data.candles || []).map((d: any) => ({
+          time: d.time as UTCTimestamp,
+          open: d.open, high: d.high, low: d.low, close: d.close,
+        }));
+        const v: VolumeBar[] = (data.volumes || []).map((d: any) => ({
+          time: d.time as UTCTimestamp,
+          value: d.value,
+          color: d.color,
+        }));
+
+        candlesRef.current = c;
+        volumesRef.current = v;
+        // Trigger a full setData via state — this effect owns the bulk load
+        setCandles(c);
+        setVolumes(v);
+        initialLoadDoneRef.current = false; // force setData + fitContent on next effect run
+
+        if (c.length > 0) {
+          const last = c[c.length - 1];
+          setCurrentPrice(last.close);
+          if (c.length > 1) {
+            const first = c[0];
+            setPriceChange(((last.close - first.open) / first.open) * 100);
           }
+          setOhlcData({ open: last.open, high: last.high, low: last.low, close: last.close, volume: v[v.length - 1]?.value ?? 0 });
         }
       } catch (err) {
-        console.error('Error fetching chart data:', err);
-        setError('Failed to load chart data');
+        if (!cancelled) setError('Failed to load chart data');
+        console.error(err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchData();
-    
-    // Refresh every 30 seconds (reduced from 10s since we have real-time updates)
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [mint]);
+    fetchCandles();
+    const interval = setInterval(fetchCandles, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [mint, timeRange]);
 
-  // Real-time trade updates via WebSocket
-  // NOTE: TokenDetail manages the room subscription - we just listen for events
+  // ── Real-time: directly update chart series without going through setState ──
+  // Using series.update() avoids full setData + fitContent on every trade.
   useEffect(() => {
     if (!socket) return;
+    const bucketSec = getBucketSec(timeRange);
 
     const handleNewTrade = (trade: any) => {
       if (trade.mint !== mint) return;
-      
-      const newTrade: Trade = {
-        signature: trade.signature,
-        isBuy: trade.isBuy,
-        solAmount: trade.solAmount,
-        tokenAmount: trade.tokenAmount,
-        price: trade.price,
-        timestamp: trade.timestamp || new Date().toISOString(),
-      };
-      
-      setTrades(prev => {
-        if (prev.some(t => t.signature === trade.signature)) return prev;
-        return [newTrade, ...prev].slice(0, 1000);
+      const price: number = trade.price;
+      const solAmt: number = Number(trade.solAmount) / 1e9;
+      const tsSec = Math.floor(Date.now() / 1000);
+      const bucketTime = (Math.floor(tsSec / bucketSec) * bucketSec) as UTCTimestamp;
+      const isBuy: boolean = trade.isBuy;
+
+      // ── Update refs for future data merges ──────────────────────────────────
+      const prevCandles = candlesRef.current;
+      const lastCandle = prevCandles[prevCandles.length - 1];
+      let liveCandle: CandleBar;
+      if (lastCandle && lastCandle.time === bucketTime) {
+        liveCandle = {
+          ...lastCandle,
+          high:  Math.max(lastCandle.high, price),
+          low:   Math.min(lastCandle.low,  price),
+          close: price,
+        };
+        candlesRef.current = [...prevCandles.slice(0, -1), liveCandle];
+      } else {
+        liveCandle = { time: bucketTime, open: price, high: price, low: price, close: price };
+        candlesRef.current = [...prevCandles, liveCandle];
+      }
+
+      const prevVolumes = volumesRef.current;
+      const lastVol = prevVolumes[prevVolumes.length - 1];
+      let liveVol: VolumeBar;
+      if (lastVol && lastVol.time === bucketTime) {
+        liveVol = { ...lastVol, value: lastVol.value + solAmt };
+        volumesRef.current = [...prevVolumes.slice(0, -1), liveVol];
+      } else {
+        liveVol = { time: bucketTime, value: solAmt, color: isBuy ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)' };
+        volumesRef.current = [...prevVolumes, liveVol];
+      }
+
+      // ── Push directly to chart series — no setState, no setData, no fitContent ──
+      candleSeriesRef.current?.update(liveCandle);
+      volumeSeriesRef.current?.update(liveVol);
+
+      // ── Only update UI state for OHLC header display ────────────────────────
+      setCurrentPrice(price);
+      setOhlcData(prev => {
+        if (!prev) return { open: price, high: price, low: price, close: price, volume: liveVol.value };
+        return { ...prev, high: Math.max(prev.high, price), low: Math.min(prev.low, price), close: price, volume: liveVol.value };
       });
-      
-      setCurrentPrice(trade.price);
     };
 
     socket.on('trade:new', handleNewTrade);
-
-    return () => {
-      socket.off('trade:new', handleNewTrade);
-    };
-  }, [socket, mint]);
+    return () => { socket.off('trade:new', handleNewTrade); };
+  }, [socket, mint, timeRange, getBucketSec]);
 
   // Initialize chart after component mounts and container exists
   useEffect(() => {
@@ -245,10 +221,7 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
         rightPriceScale: {
           borderColor: 'rgba(31, 58, 89, 0.55)',
           textColor: '#8fa4bb',
-          scaleMargins: {
-            top: 0.05,
-            bottom: 0.2,
-          },
+          scaleMargins: { top: 0.08, bottom: 0.05 },
         },
         timeScale: {
           borderColor: 'rgba(31, 58, 89, 0.55)',
@@ -343,30 +316,16 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
     };
   }, []);
 
-  // Update chart when trades or time range changes
+  // ── Full reload: only when fetch returns new dataset (interval change or 30s poll) ──
+  // WS updates bypass this effect entirely via direct series.update() calls above.
   useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current || !chartReady || trades.length === 0) return;
-
-    const intervalMs = getIntervalMs(timeRange);
-    const { candles, volumes, sortedCandles } = aggregateToCandles(trades, intervalMs);
-    
-    if (candles.length > 0 && sortedCandles && sortedCandles.length > 0) {
-      candleSeriesRef.current.setData(candles);
-      volumeSeriesRef.current.setData(volumes);
-      chartRef.current?.timeScale().fitContent();
-      
-      // Set initial OHLC data
-      const lastCandle = candles[candles.length - 1];
-      const lastVolume = sortedCandles[sortedCandles.length - 1];
-      setOhlcData({
-        open: lastCandle.open,
-        high: lastCandle.high,
-        low: lastCandle.low,
-        close: lastCandle.close,
-        volume: lastVolume?.volume || 0,
-      });
-    }
-  }, [trades, timeRange, getIntervalMs, chartReady]);
+    if (!candleSeriesRef.current || !volumeSeriesRef.current || !chartReady || candles.length === 0) return;
+    if (initialLoadDoneRef.current) return; // skip — WS updates handle incremental changes
+    candleSeriesRef.current.setData(candles);
+    volumeSeriesRef.current.setData(volumes);
+    chartRef.current?.timeScale().fitContent();
+    initialLoadDoneRef.current = true;
+  }, [candles, volumes, chartReady]);
 
   const timeRanges: TimeRange[] = ['1m', '5m', '15m', '1H', '4H'];
 
@@ -427,9 +386,9 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
       
       {/* Chart container */}
       <div className="relative h-[400px]">
-        {loading && trades.length === 0 && (
+        {loading && candles.length === 0 && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#08172A]">
-            <AppLoader size={50} text="Loading token..." />
+            <AppLoader size={50} text="Loading chart..." />
           </div>
         )}
         {error && (
@@ -437,7 +396,7 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
             {error}
           </div>
         )}
-        {!loading && trades.length === 0 && !error && (
+        {!loading && candles.length === 0 && !error && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#08172A] text-[#8fa4bb]">
             <span className="text-lg">No trades yet</span>
             <span className="text-sm mt-1">Be the first to trade!</span>

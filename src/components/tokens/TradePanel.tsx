@@ -293,35 +293,39 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
             const tokenAmountRaw = mode === 'buy'
               ? Math.floor(outputAmount * 1e6)
               : Math.floor(inputAmount * 1e6);
-            const price = mode === 'buy'
-              ? (inputAmount * LAMPORTS_PER_SOL) / (outputAmount * 1e6)
-              : (outputAmount * LAMPORTS_PER_SOL) / (inputAmount * 1e6);
+
+            // Guard: skip if amounts are invalid (e.g. quote not loaded yet → prevents Infinity price)
+            if (tokenAmountRaw > 0 && solAmountLamports > 0) {
+              const price = mode === 'buy'
+                ? (inputAmount * LAMPORTS_PER_SOL) / (outputAmount * 1e6)
+                : (outputAmount * LAMPORTS_PER_SOL) / (inputAmount * 1e6);
               
-            try {
-              // Wait for backend to record trade and emit WebSocket event
-              const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/trades/meteora`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  signature,
-                  mint: token.mint,
-                  userAddress: publicKey.toBase58(),
-                  isBuy: mode === 'buy',
-                  solAmount: solAmountLamports.toString(),
-                  tokenAmount: tokenAmountRaw.toString(),
-                  price,
-                }),
-              });
-              
-              if (!res.ok) {
-                console.error('Failed to record trade:', await res.text());
-              } else {
-                console.log('✅ Meteora trade recorded successfully');
+              try {
+                // Wait for backend to record trade and emit WebSocket event
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/trades/meteora`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    signature,
+                    mint: token.mint,
+                    userAddress: publicKey.toBase58(),
+                    isBuy: mode === 'buy',
+                    solAmount: solAmountLamports.toString(),
+                    tokenAmount: tokenAmountRaw.toString(),
+                    price,
+                  }),
+                });
+                
+                if (!res.ok) {
+                  console.error('Failed to record trade:', await res.text());
+                } else {
+                  console.log('✅ Meteora trade recorded successfully');
+                }
+              } catch (err) {
+                console.error('Failed to record Meteora trade:', err);
               }
-            } catch (err) {
-              console.error('Failed to record Meteora trade:', err);
-            }
-          }
+            } // end guard tokenAmountRaw > 0
+          } // end if (signature && publicKey)
         } else {
           // Trade on bonding curve
           let bondingSig: string | undefined;
@@ -341,24 +345,28 @@ export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
             const tokenRaw = mode === 'buy'
               ? Math.floor(outputAmount * 1e6)
               : Math.floor(inputAmount * 1e6);
-            const tradePrice = mode === 'buy'
-              ? (Math.floor(inputAmount * LAMPORTS_PER_SOL)) / tokenRaw
-              : (Math.floor(outputAmount * LAMPORTS_PER_SOL)) / tokenRaw;
 
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/trades/bonding`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                signature: bondingSig,
-                mint: token.mint,
-                userAddress: publicKey.toBase58(),
-                isBuy: mode === 'buy',
-                solAmount: solLamports.toString(),
-                tokenAmount: tokenRaw.toString(),
-                price: tradePrice,
-              }),
-            }).catch(err => console.error('Failed to report bonding trade:', err));
-          }
+            // Guard: skip if amounts are invalid (prevents Infinity/NaN price)
+            if (tokenRaw > 0 && solLamports > 0) {
+              const tradePrice = mode === 'buy'
+                ? (Math.floor(inputAmount * LAMPORTS_PER_SOL)) / tokenRaw / 1e3
+                : (Math.floor(outputAmount * LAMPORTS_PER_SOL)) / tokenRaw / 1e3;
+
+              fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/trades/bonding`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  signature: bondingSig,
+                  mint: token.mint,
+                  userAddress: publicKey.toBase58(),
+                  isBuy: mode === 'buy',
+                  solAmount: solLamports.toString(),
+                  tokenAmount: tokenRaw.toString(),
+                  price: tradePrice,
+                }),
+              }).catch(err => console.error('Failed to report bonding trade:', err));
+            }
+          } // end if (bondingSig && publicKey)
         }
 
         toast.success(
