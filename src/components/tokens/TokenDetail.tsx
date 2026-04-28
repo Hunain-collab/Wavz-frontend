@@ -227,10 +227,10 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
           graduated: true,
           meteoraPool: data.meteoraPool || prev.meteoraPool,
         } : null);
-        toast.success(
-          `🚀 Token graduated to Meteora!\n${data.meteoraPool ? `Pool: ${data.meteoraPool.slice(0, 8)}...` : ''}`,
-          { id: 'graduation', duration: 5000 }
-        );
+        // toast.success(
+        //   `🚀 Token graduated to Meteora!\n${data.meteoraPool ? `Pool: ${data.meteoraPool.slice(0, 8)}...` : ''}`,
+        //   { id: 'graduation', duration: 5000 }
+        // );
       }
     };
 

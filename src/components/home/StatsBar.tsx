@@ -20,8 +20,15 @@ const formatMC = (v: number) => {
 const timeAgo = (d: string) => {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
   if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  return `${Math.floor(s / 3600)}h`;
+
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+
+  const dAgo = Math.floor(h / 24);
+  return `${dAgo}d`;
 };
 
 const initials = (name: string) =>
@@ -358,7 +365,7 @@ export const TokenPanels: FC = () => {
     // ── Token graduated → flip graduated flag immediately ──
     const handleGraduated = (data: any) => {
       if (!data?.mint) return;
-      toast.success(`🚀 ${data.mint.slice(0, 6)}... graduated to Meteora!`);
+      // toast.success(`🚀 ${data.mint.slice(0, 6)}... graduated to Meteora!`);
       setOverrides((prev) => ({
         ...prev,
         [data.mint]: {
