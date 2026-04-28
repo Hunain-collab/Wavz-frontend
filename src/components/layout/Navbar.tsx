@@ -182,9 +182,9 @@ setResults(filtered.slice(0, 6));
   {publicKey && (
     <Link
       href={`/profile/${publicKey.toBase58()}`}
-      className="flex items-center justify-center w-11 h-11 rounded-xl bg-[#182536] hover:bg-[#24364d] transition"
+      className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#fff] hover:bg-[#fff] transition"
     >
-      <User className="w-5 h-5 text-white" />
+      <User className="w-6 h-6 text-[#24364d]" />
     </Link>
   )}
               </div>

@@ -20,6 +20,7 @@ import { useSolPrice } from '@/hooks/useSolPrice';
 import { useOnChainHolders } from '@/hooks/useOnChainHolders';
 import toast from 'react-hot-toast';
 import { AppLoader } from '../Apploader';
+import { MobileTokenDetail } from '../MobileTokenDetail';
 
 interface TokenDetailProps {
   mint: string;
@@ -228,10 +229,10 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
           graduated: true,
           meteoraPool: data.meteoraPool || prev.meteoraPool,
         } : null);
-        toast.success(
-          `🚀 Token graduated to Meteora!\n${data.meteoraPool ? `Pool: ${data.meteoraPool.slice(0, 8)}...` : ''}`,
-          { id: 'graduation', duration: 5000 }
-        );
+        // toast.success(
+        //   `🚀 Token graduated to Meteora!\n${data.meteoraPool ? `Pool: ${data.meteoraPool.slice(0, 8)}...` : ''}`,
+        //   { id: 'graduation', duration: 5000 }
+        // );
       }
     };
 
@@ -594,6 +595,45 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
   };
 
   return (
+    <>
+      <div className="lg:hidden">
+      <MobileTokenDetail
+        token={token}
+        metadata={metadata}
+        mint={mint}
+        price={price}
+        priceLoading={priceLoading}
+        marketCapUsd={marketCapUsd}
+        volume24hUsd={volume24hUsd}
+        holders={holders}
+        graduationProgress={graduationProgress}
+        graduationThreshold={graduationThreshold}
+        isGraduating={isGraduating}
+        activityTrades={activityTrades}
+        activityLoading={activityLoading}
+        filteredHoldersList={filteredHoldersList}
+        holdersLoading={holdersLoading}
+        selectedMarketStats={selectedMarketStats}
+        marketStatsByWindow={marketStatsByWindow}
+        marketWindow={marketWindow}
+        setMarketWindow={setMarketWindow}
+        solPriceUsd={solPriceUsd}
+        socialLinks={socialLinks}
+        tokenImage={tokenImage}
+        tokenDescription={tokenDescription}
+        tokenName={tokenName}
+        tokenSymbol={tokenSymbol}
+        tradeToken={tradeToken}
+        onTradeSuccess={handleTradeSuccess}
+        onCopyAddress={copyAddress}
+        copied={copied}
+        formatTxnTime={formatTxnTime}
+        formatMoneyCompact={formatMoneyCompact}
+        formatTokenAmt={formatTokenAmt}
+        normalizeLink={normalizeLink}
+      />
+    </div>
+    <div className="hidden lg:block">
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -648,18 +688,72 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
                         {copied ? <Check className="w-4 h-4 text-primary-500" /> : <Copy className="w-4 h-4" />}
                       </button>
                       {socialLinks.telegram && (
-                        <a href={normalizeLink(socialLinks.telegram)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
-                          <Image src="/images/tg.png" alt="Telegram" width={14} height={14} />
+                        <a href={normalizeLink(socialLinks.telegram)} target="_blank" rel="noopener noreferrer" >
+                               <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g filter="url(#filter0_i_7_953)">
+                <rect width="30" height="30" rx="15" fill="#182536"/>
+                </g>
+                <rect x="0.25" y="0.25" width="29.5" height="29.5" rx="14.75" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+                <path d="M13.5129 16.8051L18.547 20.4965C19.0689 20.8322 19.5164 20.6459 19.6658 19.9746L21.7165 10.3547C21.904 9.53463 21.3809 9.16148 20.8215 9.42275L8.85265 14.048C8.06948 14.3462 8.06948 14.8312 8.70326 15.0175L11.7978 15.9869L18.8826 11.4754C19.2183 11.2879 19.5164 11.3635 19.2926 11.6247" fill="white"/>
+                <defs>
+                <filter id="filter0_i_7_953" x="0" y="0" width="30" height="32" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                <feOffset dy="2"/>
+                <feGaussianBlur stdDeviation="1"/>
+                <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+                <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
+                <feBlend mode="normal" in2="shape" result="effect1_innerShadow_7_953"/>
+                </filter>
+                </defs>
+                </svg>
                         </a>
                       )}
                       {socialLinks.twitter && (
-                        <a href={normalizeLink(socialLinks.twitter)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
-                          <Image src="/images/x.png" alt="X" width={14} height={14} />
+                        <a href={normalizeLink(socialLinks.twitter)} target="_blank" rel="noopener noreferrer" >
+                           <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g filter="url(#filter0_i_7_956)">
+                    <rect width="30" height="30" rx="15" fill="#182536"/>
+                    </g>
+                    <rect x="0.25" y="0.25" width="29.5" height="29.5" rx="14.75" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+                    <path d="M9.09641 20.5811L13.7315 15.6267L9.06055 9.37558C9.17807 9.36496 9.25443 9.35168 9.33145 9.35168C10.3015 9.35168 11.2715 9.35699 12.2416 9.34571C12.3298 9.34083 12.4178 9.35984 12.4962 9.40073C12.5746 9.44163 12.6405 9.50289 12.6871 9.57809C13.6166 10.8299 14.5503 12.0785 15.4883 13.3241C15.5387 13.3905 15.5925 13.4569 15.6649 13.5492C15.9504 13.2498 16.2259 12.9649 16.4968 12.6754C17.4323 11.6762 18.3745 10.6836 19.2934 9.66905C19.3798 9.55221 19.496 9.46074 19.6298 9.4042C19.7637 9.34767 19.9103 9.32816 20.0543 9.3477C20.233 9.35765 20.4121 9.35765 20.5908 9.3477L16.1064 14.1587L20.94 20.6243C20.8072 20.6362 20.7408 20.6488 20.6671 20.6488C19.7449 20.6488 18.8213 20.6362 17.8998 20.6568C17.7704 20.6685 17.6404 20.6441 17.5241 20.5863C17.4078 20.5285 17.3099 20.4396 17.2411 20.3295C16.299 19.0401 15.3376 17.7646 14.3821 16.4845C14.3204 16.4015 14.2493 16.3239 14.167 16.2189C13.7255 16.689 13.2966 17.1432 12.8703 17.5993C11.9806 18.5508 11.0969 19.5082 10.1979 20.4503C10.0747 20.5566 9.92211 20.623 9.76036 20.6409C9.55395 20.6597 9.34639 20.6623 9.13957 20.6488L9.09641 20.5811ZM10.5398 10.094C10.6242 10.2181 10.668 10.2885 10.7178 10.3549C11.225 11.0321 11.7325 11.7089 12.2402 12.3853C14.0577 14.8118 15.8758 17.2379 17.6946 19.6635C17.761 19.7505 17.8533 19.8753 17.9376 19.8793C18.4442 19.8999 18.9521 19.8893 19.5059 19.8893C19.4122 19.7565 19.3551 19.6728 19.2941 19.5912L16.2339 15.5065C14.9343 13.7723 13.6336 12.0391 12.3318 10.3071C12.268 10.2072 12.1689 10.1349 12.0543 10.1046C11.571 10.0827 11.0869 10.094 10.5398 10.094Z" fill="white"/>
+                    <defs>
+                    <filter id="filter0_i_7_956" x="0" y="0" width="30" height="32" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                    <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                    <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                    <feOffset dy="2"/>
+                    <feGaussianBlur stdDeviation="1"/>
+                    <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+                    <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
+                    <feBlend mode="normal" in2="shape" result="effect1_innerShadow_7_956"/>
+                    </filter>
+                    </defs>
+                    </svg>
                         </a>
                       )}
                       {socialLinks.website && (
-                        <a href={normalizeLink(socialLinks.website)} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#2e4a68] bg-[#15263d] p-2 hover:bg-[#223a55]">
-                          <Image src="/images/web.png" alt="Website" width={14} height={14} />
+                        <a href={normalizeLink(socialLinks.website)} target="_blank" rel="noopener noreferrer" >
+                          <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g filter="url(#filter0_i_7_959)">
+                <rect width="30" height="30" rx="15" fill="#182536"/>
+                </g>
+                <rect x="0.25" y="0.25" width="29.5" height="29.5" rx="14.75" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+                <path d="M13.4408 22.9604C11.3431 22.5521 9.53436 21.3261 8.35201 19.648H11.3136C11.8198 21.1417 12.5633 22.3176 13.4408 22.9604ZM10.602 15.3516C10.6298 16.6239 10.805 17.8409 11.0958 18.9289H7.90189C7.30924 17.8594 6.9504 16.6424 6.8949 15.3516H10.602ZM14.6385 15.3516V18.9289H11.9208C11.6341 17.8594 11.4593 16.6424 11.4318 15.3516H14.6385ZM12.1416 19.648H14.6385V22.7022C13.6243 22.4872 12.727 21.3445 12.1416 19.648ZM7.90743 11.0551H11.094C10.8025 12.1246 10.6277 13.3417 10.6015 14.6509H6.89453C6.94911 13.3417 7.31016 12.1246 7.90743 11.0551ZM14.6385 11.0551V14.6509H11.4313C11.4571 13.3417 11.6315 12.1062 11.919 11.0551H14.6385ZM11.3114 10.336H8.35901C9.53584 8.65796 11.3298 7.45292 13.4104 7.03969C12.5448 7.68785 11.8119 8.84236 11.3114 10.336ZM14.6385 7.24321V10.336H12.1392C12.7246 8.62108 13.6243 7.45858 14.6385 7.24321ZM15.3576 19.648H17.8512C17.2706 21.3261 16.3718 22.4682 15.3576 22.6968V19.648ZM18.561 15.3516C18.5335 16.6424 18.3587 17.8594 18.0719 18.9289H15.3576V15.3516H18.561ZM18.0738 11.0551C18.3613 12.1062 18.5357 13.3417 18.5615 14.6509H15.3576V11.0551H18.0738ZM17.8536 10.336H15.3576V7.24856C16.3903 7.47758 17.2728 8.63952 17.8536 10.336ZM21.6419 10.336H18.6814C18.1804 8.84236 17.4463 7.68545 16.5796 7.03748C18.6648 7.44868 20.463 8.65796 21.6419 10.336ZM23.1064 14.6509H19.3913C19.3651 13.3417 19.1903 12.1246 18.8988 11.0551H22.0935C22.6907 12.1246 23.0518 13.3417 23.1064 14.6509ZM18.6792 19.648H21.6489C20.4643 21.3261 18.6513 22.5564 16.5488 22.9626C17.4277 22.3203 18.1724 21.1417 18.6792 19.648ZM23.106 15.3516C23.0505 16.6424 22.6916 17.8594 22.099 18.9289H18.8969C19.1877 17.8409 19.3629 16.6239 19.3908 15.3516H23.106Z" fill="white"/>
+                <defs>
+                <filter id="filter0_i_7_959" x="0" y="0" width="30" height="32" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                <feOffset dy="2"/>
+                <feGaussianBlur stdDeviation="1"/>
+                <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+                <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0"/>
+                <feBlend mode="normal" in2="shape" result="effect1_innerShadow_7_959"/>
+                </filter>
+                </defs>
+                </svg>
                         </a>
                       )}
                       <a
@@ -759,19 +853,56 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
                       <div key={trade.signature} className="grid grid-cols-[1.1fr_.8fr_1fr_1.2fr_.9fr_.9fr] px-4 py-2 text-sm">
                       {(() => {
                       const traderAddress =
-                        trade.walletAddress || trade.userAddress || trade.user?.address;
+                    trade.walletAddress || trade.userAddress || trade.user?.address;
+
+                  const isDev =
+                    traderAddress &&
+                    traderAddress.toLowerCase() === token.creatorAddress.toLowerCase();
 
                       return (
-                        <Link
-                          href={`/profile/${traderAddress}`}
-                          className="flex items-center gap-[5px]"
-                          title={traderAddress}
+                 <Link
+                    href={`/profile/${traderAddress}`}
+                    className="flex items-center gap-[6px]"
+                    title={traderAddress}
+                  >
+                    <Image src="/images/duck.png" alt="tg" width={18} height={18} />
+
+                    <span className="text-[#528EFC] hover:underline">
+                      {shortenAddress(traderAddress || '', 4)}
+                    </span>
+
+                    {isDev && (
+                      <span className="relative group flex items-center">
+                        
+                        {/* SVG */}
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="text-blue-300"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         >
-                          <Image src="/images/duck.png" alt="tg" width={18} height={18}/>
-                          <span className="text-[#528EFC] hover:underline">
-                            {shortenAddress(traderAddress || '', 4)}
-                          </span>
-                        </Link>
+                          <path d="M6.81815 22L6.81819 19.143C6.66235 17.592 5.63284 16.4165 4.68213 15" />
+                          <path d="M14.4545 22L14.4545 20.2858C19.3636 20.2858 18.8182 14.5717 18.8182 14.5717C18.8182 14.5717 21 14.5717 21 12.286L18.8182 8.8576C18.8182 4.28632 15.1094 2.04169 11.1818 2.00068C8.98139 1.97771 7.22477 2.53124 5.91201 3.5" />
+                          <path d="M13 7L15 9.5L13 12" />
+                          <path d="M5 7L3 9.5L5 12" />
+                          <path d="M10 6L8 13" />
+                        </svg>
+
+                        {/* Tooltip */}
+                        <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap
+                          bg-[#0e2035] text-white text-[10px] px-2 py-1 rounded
+                          opacity-0 group-hover:opacity-100 transition pointer-events-none
+                          border border-white/10 shadow-md">
+                          Developer
+                        </span>
+                      </span>
+                    )}
+                  </Link>
                       );
                     })()}
                         <span className={trade.isBuy ? 'text-[#45ef56]' : 'text-[#ef4444]'}>{trade.isBuy ? 'Buy' : 'Sell'}</span>
@@ -975,6 +1106,8 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
           </div>
         </div>
       </div>
+      </div>
     </div>
+    </>
   );
 };

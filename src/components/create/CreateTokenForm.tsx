@@ -57,7 +57,7 @@ export const CreateTokenForm: FC = () => {
     maxWalletBps: 200,
     lockDuration: 300,
     batchDuration: 30,
-    minTrustScore: 20,
+    minTrustScore: 0,
     requireCivic: false,
   });
 
@@ -505,7 +505,7 @@ export const CreateTokenForm: FC = () => {
               </label>
             </div>
 
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm">5min Time Lock</p>
                 <p className="text-xs text-[#8ca2b9]">Tokens locked after purchase</p>
@@ -519,7 +519,7 @@ export const CreateTokenForm: FC = () => {
                 />
                 <div className="peer h-5 w-9 rounded-full bg-[#27405c] after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#FE9216] peer-checked:after:translate-x-full" />
               </label>
-            </div>
+            </div> */}
 
             <div className="flex items-center justify-between">
               <div>
