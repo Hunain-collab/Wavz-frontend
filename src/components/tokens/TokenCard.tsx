@@ -13,8 +13,6 @@ import { useSocket } from '@/components/providers/SocketProvider';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export const TokenCard: FC<{ token: Token }> = ({ token }) => {
-  const priceChange = token.priceChange24h || 0;
-  const isPositive = priceChange >= 0;
 
   const { holders: onChainHolders } = useOnChainHolders(token.mint);
   const { socket } = useSocket();
@@ -23,6 +21,8 @@ export const TokenCard: FC<{ token: Token }> = ({ token }) => {
   const [isNew, setIsNew] = useState(false);
   const [meteoraPrice, setMeteoraPrice] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<any>(null);
+  const [latestTradePrice, setLatestTradePrice] = useState<number | null>(null);
+  const [priceInitializing, setPriceInitializing] = useState(true);
 
   // 🔥 LIVE TRADES STATE (mirrors TokenDetail)
   const [activityTrades, setActivityTrades] = useState<any[]>([]);
@@ -35,6 +35,27 @@ const [liveReserves, setLiveReserves] = useState({
     setIsNew(true);
     const timer = setTimeout(() => setIsNew(false), 800);
     return () => clearTimeout(timer);
+  }, [token.mint]);
+
+  // Fetch latest trade price from trades so Price + MC match the detail page
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestPrice = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/trades/token/${token.mint}?limit=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const trades: any[] = Array.isArray(data.trades) ? data.trades : [];
+        if (trades.length > 0 && trades[0].price && !cancelled) {
+          setLatestTradePrice(trades[0].price);
+        }
+      } catch {}
+       finally {
+        if (!cancelled) setPriceInitializing(false);
+      }
+    };
+    fetchLatestPrice();
+    return () => { cancelled = true; };
   }, [token.mint]);
 
   // 🔥 FETCH TRADES from DB + poll every 15s (identical to TokenDetail)
@@ -101,6 +122,7 @@ const [liveReserves, setLiveReserves] = useState({
       virtualSolReserves: data.virtualSolReserves || prev.virtualSolReserves,
       virtualTokenReserves: data.virtualTokenReserves || prev.virtualTokenReserves,
     }));
+    if (data.price) setLatestTradePrice(data.price);
   }
 };
 
@@ -151,6 +173,30 @@ const [liveReserves, setLiveReserves] = useState({
     fetchMeta();
   }, [token.uri]);
 
+  // Keep latestTradePrice in sync with activityTrades once they load
+  useEffect(() => {
+    if (activityTrades.length > 0 && activityTrades[0].price) {
+      setLatestTradePrice(activityTrades[0].price);
+    }
+  }, [activityTrades]);
+
+  // Live 24h price change from activityTrades (first trade 24h ago vs latest)
+  const livepriceChange24h = useMemo(() => {
+    const windowMs = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const trades24h = activityTrades
+      .filter((t: any) => now - new Date(t.timestamp).getTime() <= windowMs && t.price && Number(t.price) > 0)
+      .slice() // copy
+      .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    if (trades24h.length < 2) return token.priceChange24h || 0;
+    const oldest = Number(trades24h[0].price);
+    const newest = Number(trades24h[trades24h.length - 1].price);
+    return oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0;
+  }, [activityTrades, token.priceChange24h]);
+
+  const priceChange = livepriceChange24h;
+  const isPositive = priceChange >= 0;
+
   // 🔥 24h VOLUME from live trades (identical to TokenDetail's marketStatsByWindow['24h'])
   const volume24hUsd = useMemo(() => {
     const windowMs = 24 * 60 * 60 * 1000;
@@ -170,25 +216,24 @@ const [liveReserves, setLiveReserves] = useState({
       : Number(token.volume24h || 0) * solPriceUsd;
   }, [activityTrades, activityLoading, solPriceUsd, token.volume24h]);
 
-  // 🔥 MARKET CAP — Meteora for graduated, bonding curve otherwise
+  // 🔥 MARKET CAP — Meteora for graduated, latest trade price otherwise (matches detail page)
   const liquidityMarketCap = useMemo(() => {
     const TOTAL_SUPPLY = 1_000_000_000;
     if (token.graduated && meteoraPrice !== null) {
       return meteoraPrice * TOTAL_SUPPLY * solPriceUsd;
     }
- const virtualSol = Number(liveReserves.virtualSolReserves || 0) / 1e9;
-   const virtualTokens = Number(liveReserves.virtualTokenReserves || 0) / 1e6;
+    // Prefer latest trade price (same source as detail page)
+    if (latestTradePrice) {
+      return latestTradePrice * TOTAL_SUPPLY * solPriceUsd;
+    }
+    // Fallback to live reserves
+    const virtualSol = Number(liveReserves.virtualSolReserves || 0) / 1e9;
+    const virtualTokens = Number(liveReserves.virtualTokenReserves || 0) / 1e6;
     if (virtualTokens > 0 && virtualSol > 0) {
       return (virtualSol / virtualTokens) * TOTAL_SUPPLY * solPriceUsd;
     }
     return 0;
-  },  [
-  liveReserves.virtualSolReserves,
-  liveReserves.virtualTokenReserves,
-  token.graduated,
-  meteoraPrice,
-  solPriceUsd
-]);;
+  }, [latestTradePrice, liveReserves.virtualSolReserves, liveReserves.virtualTokenReserves, token.graduated, meteoraPrice, solPriceUsd]);
 
   const holders = onChainHolders.length > 0
     ? onChainHolders.filter((holder: any) => {
@@ -243,14 +288,18 @@ const [liveReserves, setLiveReserves] = useState({
             fill
             className="object-cover"
           />
-          <div
-            className={`absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
-              isPositive ? 'bg-[#09182b] text-[#84FF00]' : 'bg-red-500 text-white'
-            }`}
-          >
-            {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            <span>{Math.abs(priceChange).toFixed(2)}%</span>
-          </div>
+          {activityLoading ? (
+            <div className="absolute top-3 right-3 w-16 h-6 rounded-full bg-[#09182b] animate-pulse" />
+          ) : (
+            <div
+              className={`absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
+                isPositive ? 'bg-[#09182b] text-[#84FF00]' : 'bg-red-500 text-white'
+              }`}
+            >
+              {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              <span>{Math.abs(priceChange).toFixed(2)}%</span>
+            </div>
+          )}
         </div>
 
         {/* CONTENT */}
@@ -271,7 +320,10 @@ const [liveReserves, setLiveReserves] = useState({
             <div>
               <p className="text-xs text-gray-400">Price</p>
               <p className="text-white font-medium">
-                {formatPrice(token.price || 0, solPriceUsd)}
+                {priceInitializing && latestTradePrice === null
+                  ? <span className="inline-block h-4 w-20 animate-pulse rounded bg-[#2a3f5a]" />
+                  : formatPrice(latestTradePrice ?? token.price ?? 0, solPriceUsd)
+                }
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -355,8 +407,8 @@ const [liveReserves, setLiveReserves] = useState({
             <div className="bg-[#182536] rounded-xl p-2">
               <p className="text-[13px] text-gray-400">MarketCap</p>
               <p className="text-white text-sm font-medium">
-                {token.graduated && meteoraPrice === null
-                  ? <span className="text-gray-500 text-xs">Loading…</span>
+                {(token.graduated && meteoraPrice === null) || (!token.graduated && priceInitializing && latestTradePrice === null)
+                  ? <span className="inline-block h-4 w-14 animate-pulse rounded bg-[#2a3f5a]" />
                   : `$${formatNumber(liquidityMarketCap)}`
                 }
               </p>
@@ -365,9 +417,8 @@ const [liveReserves, setLiveReserves] = useState({
             <div className="bg-[#182536] rounded-xl p-2">
               <p className="text-[13px] text-gray-400">Volume</p>
               <p className="text-white text-sm font-medium">
-                {/* Show loading only when graduated and trades still fetching */}
-                {token.graduated && activityLoading
-                  ? <span className="text-gray-500 text-xs">Loading…</span>
+                {activityLoading
+                  ? <span className="inline-block h-4 w-14 animate-pulse rounded bg-[#2a3f5a]" />
                   : `$${formatNumber(volume24hUsd)}`
                 }
               </p>

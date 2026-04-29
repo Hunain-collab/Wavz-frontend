@@ -50,6 +50,7 @@ interface MobileTokenDetailProps {
   formatMoneyCompact: (v: number) => string;
   formatTokenAmt: (v: string | number) => string;
   normalizeLink: (url?: string) => string;
+  onChartPriceUpdate?: (price: number) => void;
 }
 
 // ─── Bonding Curve Bar (shown at top across ALL tabs) ────────────────────────
@@ -192,11 +193,28 @@ const InfoTab: FC<MobileTokenDetailProps> = (props) => {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-3 gap-2 px-4 py-3 bg-[#08172A] border-t border-white/5">
+      <div className="grid grid-cols-2 gap-2 px-4 py-3 bg-[#08172A] border-t border-white/5">
         <div className="rounded-xl bg-[#1b2c43] p-2.5">
           <p className="text-[10px] text-[#8fa4bb]">Market Cap</p>
           <p className="mt-1 text-sm font-bold">
-            {priceLoading ? <span className="text-gray-400 text-xs">Loading…</span> : `$${formatNumber(marketCapUsd || 0)}`}
+            {priceLoading ? <span className="inline-block h-4 w-16 animate-pulse rounded bg-[#2a3f5a]" /> : `$${formatNumber(marketCapUsd || 0)}`}
+          </p>
+        </div>
+        <div className="rounded-xl bg-[#1b2c43] p-2.5">
+          <p className="text-[10px] text-[#8fa4bb]">Price</p>
+          <p className="mt-1 text-sm font-bold">
+            {priceLoading ? (
+              <span className="inline-block h-4 w-20 animate-pulse rounded bg-[#2a3f5a]" />
+            ) : price ? (
+              (() => {
+                const usdPrice = price * solPriceUsd;
+                if (usdPrice < 0.000001)  return '$' + usdPrice.toFixed(9);
+                if (usdPrice < 0.00001)   return '$' + usdPrice.toFixed(8);
+                if (usdPrice < 0.0001)    return '$' + usdPrice.toFixed(7);
+                if (usdPrice < 0.01)      return '$' + usdPrice.toFixed(5);
+                return '$' + usdPrice.toFixed(4);
+              })()
+            ) : '$0'}
           </p>
         </div>
         <div className="rounded-xl bg-[#1b2c43] p-2.5">
@@ -369,15 +387,15 @@ const InfoTab: FC<MobileTokenDetailProps> = (props) => {
 // ─── CHART TAB ────────────────────────────────────────────────────────────────
 
 const ChartTab: FC<Pick<MobileTokenDetailProps,
-  'mint' | 'selectedMarketStats' | 'marketWindow' | 'setMarketWindow' | 'formatMoneyCompact'
->> = ({ mint, selectedMarketStats, marketWindow, setMarketWindow, formatMoneyCompact }) => {
+  'mint' | 'selectedMarketStats' | 'marketWindow' | 'setMarketWindow' | 'formatMoneyCompact' | 'onChartPriceUpdate'
+>> = ({ mint, selectedMarketStats, marketWindow, setMarketWindow, formatMoneyCompact, onChartPriceUpdate }) => {
   const txnTotal   = Math.max(selectedMarketStats.buys + selectedMarketStats.sells, 1);
   const volumeTotal = Math.max(selectedMarketStats.volumeBuys + selectedMarketStats.volumeSells, 1);
   const makersTotal = Math.max(selectedMarketStats.makersBuys + selectedMarketStats.makersSells, 1);
 
   return (
     <div className="pb-6">
-      <PriceChart mint={mint} />
+      <PriceChart mint={mint} onPriceUpdate={onChartPriceUpdate} />
 
       {/* Time window selector */}
       <div className="overflow-hidden rounded-2xl border border-[#1f3a59] bg-[#08172A] mx-4 mt-4">
@@ -473,6 +491,7 @@ export const MobileTokenDetail: FC<MobileTokenDetailProps> = (props) => {
             marketWindow={props.marketWindow}
             setMarketWindow={props.setMarketWindow}
             formatMoneyCompact={props.formatMoneyCompact}
+            onChartPriceUpdate={props.onChartPriceUpdate}
           />}
         {activeTab === 'buysell' && <BuySellTab
             tradeToken={props.tradeToken}

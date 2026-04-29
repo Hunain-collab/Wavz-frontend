@@ -8,6 +8,7 @@ import { useSolPrice } from '@/hooks/useSolPrice';
 
 interface PriceChartProps {
   mint: string;
+  onPriceUpdate?: (price: number) => void;
 }
 
 interface CandleBar {
@@ -36,7 +37,7 @@ type TimeRange = '1m' | '5m' | '15m' | '1H' | '4H';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
+export const PriceChart: FC<PriceChartProps> = ({ mint, onPriceUpdate }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -102,6 +103,7 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
         if (c.length > 0) {
           const last = c[c.length - 1];
           setCurrentPrice(last.close);
+          onPriceUpdate?.(last.close);
           if (c.length > 1) {
             const first = c[0];
             setPriceChange(((last.close - first.open) / first.open) * 100);
@@ -169,6 +171,7 @@ export const PriceChart: FC<PriceChartProps> = ({ mint }) => {
 
       // ── Only update UI state for OHLC header display ────────────────────────
       setCurrentPrice(price);
+      onPriceUpdate?.(price);
       setOhlcData(prev => {
         if (!prev) return { open: price, high: price, low: price, close: price, volume: liveVol.value };
         return { ...prev, high: Math.max(prev.high, price), low: Math.min(prev.low, price), close: price, volume: liveVol.value };

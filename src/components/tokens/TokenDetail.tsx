@@ -61,6 +61,9 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
   const [error, setError] = useState<string | null>(null);
   const [isGraduating, setIsGraduating] = useState(false);
   const [meteoraPrice, setMeteoraPrice] = useState<number | null>(null);
+  const [chartPrice, setChartPrice] = useState<number | null>(null);
+  const [latestTradePrice, setLatestTradePrice] = useState<number | null>(null);
+  const [priceInitializing, setPriceInitializing] = useState(true);
   const [activityTab, setActivityTab] = useState<'transactions' | 'holders' | 'threads'>('transactions');
   const [marketWindow, setMarketWindow] = useState<'5m' | '1h' | '6h' | '24h'>('5m');
   const [activityTrades, setActivityTrades] = useState<any[]>([]);
@@ -131,6 +134,28 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
     return () => { cancelled = true; };
   }, [mint]);
 
+  // Fetch latest trade price immediately so the card shows the correct price before the chart loads
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestPrice = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/trades/token/${mint}?limit=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const trades: any[] = Array.isArray(data.trades) ? data.trades : [];
+        if (trades.length > 0 && trades[0].price && !cancelled) {
+          setLatestTradePrice(trades[0].price);
+        }
+      } catch {
+        // silently ignore — bonding curve price is the fallback
+      } finally {
+        if (!cancelled) setPriceInitializing(false);
+      }
+    };
+    fetchLatestPrice();
+    return () => { cancelled = true; };
+  }, [mint]);
+
   // WebSocket connection for real-time updates
   useEffect(() => {
     if (!socket) return;
@@ -167,6 +192,11 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
       // data.price is already normalized (SOL/token) — backend divides by 1000 before storing/emitting
       if (data.isMeteoraSwap && data.price) {
         setMeteoraPrice(data.price);
+      }
+
+      // Update latest trade price for bonding curve tokens
+      if (!data.isMeteoraSwap && data.price) {
+        setLatestTradePrice(data.price);
       }
 
       // Prepend new trade to activity list in real-time
@@ -283,6 +313,13 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
       clearInterval(interval);
     };
   }, [mint]);
+
+  // Keep latestTradePrice in sync with the most recent trade from activityTrades
+  useEffect(() => {
+    if (activityTrades.length > 0 && activityTrades[0].price) {
+      setLatestTradePrice(activityTrades[0].price);
+    }
+  }, [activityTrades]);
 
   // Fetch Meteora price for graduated tokens
   useEffect(() => {
@@ -440,9 +477,9 @@ export const TokenDetail: FC<TokenDetailProps> = ({ mint }) => {
   const bondingCurvePrice = virtualSol / virtualTokens;
   
   // For graduated tokens, ONLY use Meteora price (bonding curve data is stale after graduation)
-  // For non-graduated tokens, use bonding curve price
-  const price = token.graduated ? meteoraPrice : bondingCurvePrice;
-  const priceLoading = token.graduated && meteoraPrice === null;
+  // For non-graduated tokens, prefer chart close price > latest trade price > bonding curve (stale reserves)
+  const price = token.graduated ? meteoraPrice : (chartPrice ?? latestTradePrice ?? bondingCurvePrice);
+  const priceLoading = (token.graduated && meteoraPrice === null) || (!token.graduated && priceInitializing && latestTradePrice === null && chartPrice === null);
   
   // Market cap calculation - price is in SOL, convert to USD (dynamic price)
   const TOTAL_SUPPLY = 1_000_000_000; // 1B total supply
@@ -631,6 +668,7 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
         formatMoneyCompact={formatMoneyCompact}
         formatTokenAmt={formatTokenAmt}
         normalizeLink={normalizeLink}
+        onChartPriceUpdate={setChartPrice}
       />
     </div>
     <div className="hidden lg:block">
@@ -769,9 +807,26 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
                       <div className="rounded-xl bg-[#1b2c43] p-2">
                         <p className="text-[11px] text-[#8fa4bb]">Marketcap</p>
                         <p className="mt-1 text-base font-bold">
-                          {priceLoading ? <span className="text-gray-400">Loading...</span> : `$${formatNumber(marketCapUsd || 0)}`}
+                          {priceLoading ? <span className="inline-block h-4 w-16 animate-pulse rounded bg-[#2a3f5a]" /> : `$${formatNumber(marketCapUsd || 0)}`}
                         </p>
                       </div>
+                      {/* <div className="rounded-xl bg-[#1b2c43] p-2">
+                        <p className="text-[11px] text-[#8fa4bb]">Price</p>
+                        <p className="mt-1 text-base font-bold">
+                          {priceLoading ? (
+                            <span className="text-gray-400">Loading...</span>
+                          ) : price ? (
+                            (() => {
+                              const usdPrice = price * solPriceUsd;
+                              if (usdPrice < 0.000001)  return '$' + usdPrice.toFixed(9);
+                              if (usdPrice < 0.00001)   return '$' + usdPrice.toFixed(8);
+                              if (usdPrice < 0.0001)    return '$' + usdPrice.toFixed(7);
+                              if (usdPrice < 0.01)      return '$' + usdPrice.toFixed(5);
+                              return '$' + usdPrice.toFixed(4);
+                            })()
+                          ) : '$0'}
+                        </p>
+                      </div> */}
                       <div className="rounded-xl bg-[#1b2c43] p-2">
                         <p className="text-[11px] text-[#8fa4bb]">Volume</p>
                         <p className="mt-1 text-base font-bold">${formatNumber(volume24hUsd)}</p>
@@ -794,7 +849,7 @@ const filteredHoldersList = onChainHolders.filter((holder: any) => {
             </div>
           </div>
 
-          <PriceChart mint={mint} />
+          <PriceChart mint={mint} onPriceUpdate={setChartPrice} />
 
           <div className="rounded-2xl bg-[#08172A] p-3">
             <div className="mb-3 flex items-center gap-4 overflow-x-auto whitespace-nowrap pb-1">

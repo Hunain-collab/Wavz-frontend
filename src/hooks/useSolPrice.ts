@@ -5,7 +5,7 @@ const JUPITER_PRICE_API = 'https://api.jup.ag/price/v2?ids=SOL';
 // Wrapped SOL mint for Helius DAS fallback
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 const CACHE_DURATION = 60_000; // 1 minute cache
-const FALLBACK_PRICE = 83; // Last-resort hardcoded fallback
+const FALLBACK_PRICE = 150; // Last-resort hardcoded fallback
 
 interface PriceCache {
   price: number;
