@@ -32,12 +32,12 @@ interface TradePanelProps {
 type TradeMode = 'buy' | 'sell';
 
 export const TradePanel: FC<TradePanelProps> = ({ token, onTradeSuccess }) => {
-  const { publicKey, connected } = useWallet();
+const { publicKey, connected, select, wallets ,connect } = useWallet();
   const { connection } = useConnection();
   const { buy, sell } = useLaunchpadActions();
   const accounts = useProgramAccounts();
   const { buyOnMeteora, sellOnMeteora, getQuote, getPoolInfo } = useMeteorSwap();
-  
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [mode, setMode] = useState<TradeMode>('buy');
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -570,6 +570,11 @@ const formatDisplay = (value: number, mode: 'buy' | 'sell') => {
 
   return value.toFixed(2);
 };
+useEffect(() => {
+  if (connected) {
+    setShowWalletModal(false);
+  }
+}, [connected]);
   return (
     <div className="rounded-2xl  bg-[#08172A] p-4">
       {/* Mode Toggle */}
@@ -716,28 +721,80 @@ const formatDisplay = (value: number, mode: 'buy' | 'sell') => {
         )}
 
         {/* Trade Button - Show for all tradeable tokens */}
-        {(!token.graduated || (token.graduated && token.meteoraPool)) && (
-         <button
-          onClick={handleTrade}
-          disabled={isSubmitting || !connected}
-          className={`w-full rounded-xl py-3 text-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-            mode === 'buy'
-              ? 'bg-[#45ef56] text-[#08172A] hover:bg-[#39da4c]'
-              : 'bg-[#ef4444] text-white hover:bg-[#dc2626]'
-          } flex items-center justify-center gap-2`} // 🔥 IMPORTANT
+       {(!token.graduated || (token.graduated && token.meteoraPool)) && (
+  <>
+    {/* Custom Wallet Modal */}
+    {showWalletModal && (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        onClick={() => setShowWalletModal(false)}
+      >
+        <div 
+          className="bg-[#0f2035] rounded-2xl p-6 w-80 border border-[#2d4867]"
+          onClick={(e) => e.stopPropagation()}
         >
-                {isSubmitting ? (
-          <>
-            <AppLoader size={50}  />
-            <span>Processing...</span>
-          </>
-        ) : !connected ? (
-          <span>Connect Wallet</span>
-        ) : (
-          <span>{mode === 'buy' ? 'Buy' : 'Sell'}</span>
-        )}
-        </button>
-        )}
+          <h2 className="text-white text-lg font-bold mb-4">Connect Wallet</h2>
+          <div className="space-y-2">
+            {wallets.map((wallet) => (
+              <button
+                key={wallet.adapter.name}
+               onClick={async () => {
+                try {
+                  select(wallet.adapter.name);
+                  await connect(); // 🔥 IMPORTANT
+                  setShowWalletModal(false);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#15263d] hover:bg-[#1e3554] transition text-white font-medium"
+              >
+                <img 
+                  src={wallet.adapter.icon} 
+                  alt={wallet.adapter.name} 
+                  className="w-6 h-6 rounded"
+                />
+                {wallet.adapter.name}
+              </button>
+            ))}
+            {wallets.length === 0 && (
+              <p className="text-[#90a6bd] text-sm text-center py-4">
+                No wallets found. Please install Phantom or Solflare.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setShowWalletModal(false)}
+            className="mt-4 w-full py-2 rounded-xl bg-[#15263d] text-[#90a6bd] hover:text-white transition text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+
+    <button
+      onClick={!connected ? () => setShowWalletModal(true) : handleTrade}
+      disabled={isSubmitting}
+      className={`w-full rounded-xl py-3 text-xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        mode === 'buy'
+          ? 'bg-[#45ef56] text-[#08172A] hover:bg-[#39da4c]'
+          : 'bg-[#ef4444] text-white hover:bg-[#dc2626]'
+      } flex items-center justify-center gap-2`}
+    >
+      {isSubmitting ? (
+        <>
+          <AppLoader size={50} />
+          <span>Processing...</span>
+        </>
+      ) : !connected ? (
+        <span>Connect Wallet</span>
+      ) : (
+        <span>{mode === 'buy' ? 'Buy' : 'Sell'}</span>
+      )}
+    </button>
+  </>
+)}
       </div>
     </div>
   );
